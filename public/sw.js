@@ -15,6 +15,7 @@ const BYPASS_PATTERNS = [
   /^\/relay/,
   /^\/browse/,
   /^\/external/,
+  /^\/navigate/,
   /^\/sw\.js/,
   /^\/css\//,
   /^\/js\//,
@@ -298,6 +299,21 @@ self.addEventListener('fetch', (event) => {
   // Check if should bypass
   if (shouldBypass(url)) {
     // Let it through normally
+    return;
+  }
+  
+  // IMPORTANT: Check for navigation requests to external URLs
+  // This catches ad clicks that navigate to advertiser pages
+  if (request.mode === 'navigate' && isExternalUrl(url)) {
+    log('Intercepted navigation to external URL:', url.substring(0, 80));
+    
+    // Redirect navigation to go through /navigate endpoint
+    const navigateUrl = new URL('/navigate', self.location.origin);
+    navigateUrl.searchParams.set('url', url);
+    
+    event.respondWith(
+      Response.redirect(navigateUrl.href, 302)
+    );
     return;
   }
   

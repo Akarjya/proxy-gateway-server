@@ -15,6 +15,7 @@ const logger = require('./utils/logger');
 const landingRoutes = require('./routes/landingRoutes');
 const proxyRoutes = require('./routes/proxyRoutes');
 const relayRoutes = require('./routes/relayRoutes');
+const navigateRoutes = require('./routes/navigateRoutes');
 const { notFoundHandler, errorHandler } = require('./middleware/errorMiddleware');
 
 // Initialize Express app
@@ -60,6 +61,7 @@ app.use(session({
 // Routes
 app.use('/', landingRoutes);
 app.use('/', relayRoutes);  // Service Worker relay routes (must be before proxyRoutes)
+app.use('/', navigateRoutes);  // External navigation routes (for ad clicks, external links)
 app.use('/', proxyRoutes);
 
 // Error handlers

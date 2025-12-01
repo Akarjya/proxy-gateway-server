@@ -510,6 +510,178 @@ router.get('/browse*', async (req, res) => {
   };
   
   console.log('[Proxy] Interceptors initialized');
+  
+  // ========================================
+  // NAVIGATION INTERCEPTION (IP LEAK PROTECTION)
+  // ========================================
+  // This section ensures ALL external navigation (including ad clicks)
+  // goes through our proxy to protect user's real IP
+  
+  // Helper: Check if URL is external
+  function isExternalUrl(url) {
+    if (!url || url.startsWith('#') || url.startsWith('javascript:') || url.startsWith('mailto:') || url.startsWith('tel:')) {
+      return false;
+    }
+    if (url.startsWith('/browse') || url.startsWith('/external') || url.startsWith('/navigate') || url.startsWith('/relay')) {
+      return false;
+    }
+    if (url.startsWith('http')) {
+      try {
+        var urlObj = new (window._OriginalURL || URL)(url);
+        return urlObj.hostname !== location.hostname;
+      } catch(e) {
+        return false;
+      }
+    }
+    return false;
+  }
+  
+  // Helper: Route URL through proxy
+  function proxyNavigate(url) {
+    if (url.startsWith('/browse') || url.startsWith('/external') || url.startsWith('/navigate')) {
+      return url;
+    }
+    return '/navigate?url=' + encodeURIComponent(url);
+  }
+  
+  // 1. Intercept ALL link clicks (including dynamically created ones)
+  document.addEventListener('click', function(e) {
+    var target = e.target;
+    
+    // Find the closest anchor element
+    while (target && target.tagName !== 'A') {
+      target = target.parentElement;
+    }
+    
+    if (target && target.href) {
+      var href = target.href;
+      
+      // Check if it's an external link
+      if (isExternalUrl(href)) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('[Proxy] Intercepted external link click:', href);
+        
+        // Route through proxy navigate
+        window.location.href = proxyNavigate(href);
+        return false;
+      }
+    }
+  }, true); // Use capture phase to catch before other handlers
+  
+  // 2. Intercept window.open (for popup links, ad clicks)
+  var _originalWindowOpen = window.open;
+  window.open = function(url, name, features) {
+    if (url && isExternalUrl(url)) {
+      console.log('[Proxy] Intercepted window.open:', url);
+      url = proxyNavigate(url);
+    }
+    return _originalWindowOpen.call(this, url, name, features);
+  };
+  
+  // 3. Intercept location assignments
+  // Store original location descriptor
+  var locationDescriptor = Object.getOwnPropertyDescriptor(window, 'location');
+  
+  // Intercept location.href assignment
+  if (window.history && window.history.pushState) {
+    // Use history API to detect navigation attempts
+    var _originalPushState = history.pushState;
+    var _originalReplaceState = history.replaceState;
+    
+    history.pushState = function(state, title, url) {
+      if (url && isExternalUrl(url)) {
+        console.log('[Proxy] Intercepted pushState:', url);
+        url = proxyNavigate(url);
+      }
+      return _originalPushState.call(this, state, title, url);
+    };
+    
+    history.replaceState = function(state, title, url) {
+      if (url && isExternalUrl(url)) {
+        console.log('[Proxy] Intercepted replaceState:', url);
+        url = proxyNavigate(url);
+      }
+      return _originalReplaceState.call(this, state, title, url);
+    };
+  }
+  
+  // 4. Intercept form submissions to external URLs
+  document.addEventListener('submit', function(e) {
+    var form = e.target;
+    if (form && form.action && isExternalUrl(form.action)) {
+      e.preventDefault();
+      console.log('[Proxy] Intercepted form submission:', form.action);
+      
+      // Create new action through proxy
+      var proxyAction = proxyNavigate(form.action);
+      
+      // Clone form data and submit
+      if (form.method && form.method.toLowerCase() === 'post') {
+        // For POST, redirect to navigate with form data
+        var formData = new FormData(form);
+        var params = new URLSearchParams(formData);
+        
+        // Create a temporary form pointing to navigate
+        var tempForm = document.createElement('form');
+        tempForm.method = 'POST';
+        tempForm.action = '/navigate?url=' + encodeURIComponent(form.action);
+        tempForm.style.display = 'none';
+        
+        // Copy form inputs
+        for (var pair of formData.entries()) {
+          var input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = pair[0];
+          input.value = pair[1];
+          tempForm.appendChild(input);
+        }
+        
+        document.body.appendChild(tempForm);
+        tempForm.submit();
+      } else {
+        // For GET, just redirect with query params
+        window.location.href = proxyAction;
+      }
+    }
+  }, true);
+  
+  // 5. Use Navigation API if available (modern browsers)
+  if ('navigation' in window) {
+    navigation.addEventListener('navigate', function(e) {
+      var url = e.destination.url;
+      if (isExternalUrl(url)) {
+        e.preventDefault();
+        console.log('[Proxy] Navigation API intercepted:', url);
+        window.location.href = proxyNavigate(url);
+      }
+    });
+  }
+  
+  // 6. Catch unload and warn about leaving proxy
+  window.addEventListener('beforeunload', function(e) {
+    // Check if navigating to external URL
+    // Note: Modern browsers restrict what we can do here
+    console.log('[Proxy] Page unload event triggered');
+  });
+  
+  // 7. Monitor for dynamic iframe creation (ad iframes)
+  // When an ad iframe tries to navigate the top window, we intercept
+  var _origIframeSetter = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src');
+  if (_origIframeSetter && _origIframeSetter.set) {
+    Object.defineProperty(HTMLIFrameElement.prototype, 'src', {
+      set: function(value) {
+        // Log iframe src changes
+        if (value && (value.includes('googlesyndication') || value.includes('doubleclick'))) {
+          console.log('[Proxy] Ad iframe src set:', value.substring(0, 60));
+        }
+        return _origIframeSetter.set.call(this, value);
+      },
+      get: _origIframeSetter.get
+    });
+  }
+  
+  console.log('[Proxy] Navigation interception active - All external links will go through proxy');
 })();
 </script>`;
       

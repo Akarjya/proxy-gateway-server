@@ -109,6 +109,15 @@ class RewriteService {
       }
     });
 
+    // Rewrite iframe sources (important for proxying external content)
+    $('iframe[src]').each((_, element) => {
+      const src = $(element).attr('src');
+      const newSrc = this.rewriteUrl(src, targetDomain);
+      if (newSrc) {
+        $(element).attr('src', newSrc);
+      }
+    });
+
     // Rewrite inline styles with url()
     $('[style]').each((_, element) => {
       const style = $(element).attr('style');
