@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Service Worker Test - Proxy Gateway</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+      color: #fff;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(90deg, #00d9ff, #00ff88);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    
+    .subtitle {
+      color: #888;
+      margin-bottom: 2rem;
+    }
+    
+    .card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .card h2 {
+      font-size: 1.1rem;
+      color: #00d9ff;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    
+    .status.success {
+      background: rgba(0, 255, 136, 0.2);
+      color: #00ff88;
+    }
+    
+    .status.warning {
+      background: rgba(255, 170, 0, 0.2);
+      color: #ffaa00;
+    }
+    
+    .status.error {
+      background: rgba(255, 68, 68, 0.2);
+      color: #ff4444;
+    }
+    
+    .status.pending {
+      background: rgba(136, 136, 136, 0.2);
+      color: #888;
+    }
+    
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    
+    .test-btn {
+      padding: 0.75rem 1.5rem;
+      background: linear-gradient(135deg, #00d9ff 0%, #00ff88 100%);
+      border: none;
+      border-radius: 8px;
+      color: #000;
+      font-weight: 600;
+      cursor: pointer;
+      margin-right: 0.5rem;
+      margin-bottom: 0.5rem;
+      transition: transform 0.2s, opacity 0.2s;
+    }
+    
+    .test-btn:hover {
+      transform: translateY(-2px);
+    }
+    
+    .test-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .test-btn.secondary {
+      background: #333;
+      color: #fff;
+    }
+    
+    .log {
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 1rem;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: 'Consolas', monospace;
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
+    
+    .log-entry {
+      margin-bottom: 0.25rem;
+    }
+    
+    .log-entry.info { color: #00d9ff; }
+    .log-entry.success { color: #00ff88; }
+    .log-entry.warning { color: #ffaa00; }
+    .log-entry.error { color: #ff4444; }
+    
+    .result-box {
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+    
+    .result-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #222;
+    }
+    
+    .result-item:last-child {
+      border-bottom: none;
+    }
+    
+    .result-label {
+      color: #888;
+    }
+    
+    .result-value {
+      font-weight: 500;
+    }
+    
+    .result-value.highlight {
+      color: #00ff88;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 Service Worker Relay Test</h1>
+    <p class="subtitle">Test that Service Worker is intercepting requests and routing through SOCKS5 proxy</p>
+    
+    <!-- SW Status -->
+    <div class="card">
+      <h2>📡 Service Worker Status</h2>
+      <div id="swStatus" class="status pending">
+        <span class="dot"></span>
+        <span>Checking...</span>
+      </div>
+      <div id="swDetails" style="margin-top: 1rem; color: #888; font-size: 0.9rem;"></div>
+    </div>
+    
+    <!-- Relay Test -->
+    <div class="card">
+      <h2>🌐 Relay Endpoint Test</h2>
+      <p style="color: #888; margin-bottom: 1rem;">Test if /relay endpoint is working with SOCKS5 proxy</p>
+      <button class="test-btn" onclick="testRelay()">Test Relay</button>
+      <button class="test-btn secondary" onclick="testRelayDirect()">Test Direct (GET)</button>
+      <div id="relayResult" class="result-box" style="display: none;"></div>
+    </div>
+    
+    <!-- External Request Test -->
+    <div class="card">
+      <h2>🎯 External Request Test (via Service Worker)</h2>
+      <p style="color: #888; margin-bottom: 1rem;">Test fetching external URLs - should go through SW → Relay → SOCKS5</p>
+      <button class="test-btn" onclick="testExternalFetch()">Test Google API</button>
+      <button class="test-btn secondary" onclick="testAdScript()">Test Ad Script</button>
+      <div id="externalResult" class="result-box" style="display: none;"></div>
+    </div>
+    
+    <!-- Live Log -->
+    <div class="card">
+      <h2>📋 Live Log</h2>
+      <button class="test-btn secondary" onclick="clearLog()">Clear Log</button>
+      <div id="log" class="log" style="margin-top: 1rem;">
+        <div class="log-entry info">[Init] Test page loaded</div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    const logEl = document.getElementById('log');
+    const swStatusEl = document.getElementById('swStatus');
+    const swDetailsEl = document.getElementById('swDetails');
+    
+    function log(message, type = 'info') {
+      const entry = document.createElement('div');
+      entry.className = 'log-entry ' + type;
+      entry.textContent = '[' + new Date().toLocaleTimeString() + '] ' + message;
+      logEl.appendChild(entry);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+    
+    function clearLog() {
+      logEl.innerHTML = '<div class="log-entry info">[Clear] Log cleared</div>';
+    }
+    
+    function setStatus(el, status, text) {
+      el.className = 'status ' + status;
+      el.innerHTML = '<span class="dot"></span><span>' + text + '</span>';
+    }
+    
+    // Check Service Worker status
+    async function checkServiceWorker() {
+      if (!('serviceWorker' in navigator)) {
+        setStatus(swStatusEl, 'error', 'Service Workers not supported');
+        swDetailsEl.textContent = 'Your browser does not support Service Workers';
+        log('Service Workers not supported in this browser', 'error');
+        return;
+      }
+      
+      try {
+        const registration = await navigator.serviceWorker.getRegistration('/');
+        
+        if (registration) {
+          if (registration.active) {
+            setStatus(swStatusEl, 'success', 'Active and controlling');
+            swDetailsEl.innerHTML = 
+              '<strong>Scope:</strong> ' + registration.scope + '<br>' +
+              '<strong>State:</strong> ' + registration.active.state + '<br>' +
+              '<strong>Controller:</strong> ' + (navigator.serviceWorker.controller ? 'Yes' : 'No');
+            log('Service Worker is active: ' + registration.scope, 'success');
+          } else if (registration.installing) {
+            setStatus(swStatusEl, 'warning', 'Installing...');
+            log('Service Worker is installing', 'warning');
+          } else if (registration.waiting) {
+            setStatus(swStatusEl, 'warning', 'Waiting to activate');
+            log('Service Worker is waiting', 'warning');
+          }
+        } else {
+          setStatus(swStatusEl, 'warning', 'Not registered');
+          swDetailsEl.textContent = 'Service Worker not found. It will be registered when you visit /browse';
+          log('Service Worker not registered yet', 'warning');
+          
+          // Try to register it
+          log('Attempting to register Service Worker...', 'info');
+          const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+          log('Service Worker registered: ' + reg.scope, 'success');
+          setTimeout(checkServiceWorker, 1000);
+        }
+      } catch (error) {
+        setStatus(swStatusEl, 'error', 'Error: ' + error.message);
+        log('Service Worker error: ' + error.message, 'error');
+      }
+    }
+    
+    // Test relay endpoint directly
+    async function testRelay() {
+      const resultEl = document.getElementById('relayResult');
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = '<div style="color: #888;">Testing...</div>';
+      log('Testing /relay/test endpoint...', 'info');
+      
+      try {
+        const response = await fetch('/relay/test');
+        const data = await response.json();
+        
+        if (data.success) {
+          resultEl.innerHTML = 
+            '<div class="result-item"><span class="result-label">Status</span><span class="result-value highlight">✅ Success</span></div>' +
+            '<div class="result-item"><span class="result-label">Proxy IP</span><span class="result-value highlight">' + data.proxyIp + '</span></div>' +
+            '<div class="result-item"><span class="result-label">Session ID</span><span class="result-value">' + data.proxySessionId + '</span></div>';
+          log('Relay test successful! Proxy IP: ' + data.proxyIp, 'success');
+        } else {
+          resultEl.innerHTML = '<div style="color: #ff4444;">❌ Failed: ' + data.error + '</div>';
+          log('Relay test failed: ' + data.error, 'error');
+        }
+      } catch (error) {
+        resultEl.innerHTML = '<div style="color: #ff4444;">❌ Error: ' + error.message + '</div>';
+        log('Relay test error: ' + error.message, 'error');
+      }
+    }
+    
+    // Test relay GET endpoint
+    async function testRelayDirect() {
+      const resultEl = document.getElementById('relayResult');
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = '<div style="color: #888;">Testing GET relay...</div>';
+      log('Testing /relay?url=... endpoint...', 'info');
+      
+      try {
+        const response = await fetch('/relay?url=' + encodeURIComponent('https://api.ipify.org?format=json'));
+        const data = await response.json();
+        
+        resultEl.innerHTML = 
+          '<div class="result-item"><span class="result-label">Direct Relay</span><span class="result-value highlight">✅ Success</span></div>' +
+          '<div class="result-item"><span class="result-label">IP (via relay)</span><span class="result-value highlight">' + data.ip + '</span></div>';
+        log('Direct relay successful! IP: ' + data.ip, 'success');
+      } catch (error) {
+        resultEl.innerHTML = '<div style="color: #ff4444;">❌ Error: ' + error.message + '</div>';
+        log('Direct relay error: ' + error.message, 'error');
+      }
+    }
+    
+    // Test external fetch (should go through SW)
+    async function testExternalFetch() {
+      const resultEl = document.getElementById('externalResult');
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = '<div style="color: #888;">Fetching external URL...</div>';
+      log('Fetching https://api.ipify.org (should be intercepted by SW)...', 'info');
+      
+      try {
+        // This fetch to external URL should be intercepted by Service Worker
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        
+        resultEl.innerHTML = 
+          '<div class="result-item"><span class="result-label">External Fetch</span><span class="result-value highlight">✅ Success</span></div>' +
+          '<div class="result-item"><span class="result-label">IP Seen</span><span class="result-value highlight">' + data.ip + '</span></div>' +
+          '<div class="result-item"><span class="result-label">Route</span><span class="result-value">SW → Relay → SOCKS5</span></div>';
+        log('External fetch successful! IP: ' + data.ip, 'success');
+        log('If this IP is different from your real IP, Service Worker relay is working!', 'info');
+      } catch (error) {
+        resultEl.innerHTML = '<div style="color: #ff4444;">❌ Error: ' + error.message + '</div>';
+        log('External fetch error: ' + error.message, 'error');
+      }
+    }
+    
+    // Test ad script loading
+    async function testAdScript() {
+      const resultEl = document.getElementById('externalResult');
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = '<div style="color: #888;">Testing ad script fetch...</div>';
+      log('Fetching Google AdSense script URL (testing if it goes through proxy)...', 'info');
+      
+      try {
+        // Try to fetch the AdSense script - should go through SW
+        const response = await fetch('https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js');
+        const text = await response.text();
+        
+        resultEl.innerHTML = 
+          '<div class="result-item"><span class="result-label">Ad Script Fetch</span><span class="result-value highlight">✅ Success</span></div>' +
+          '<div class="result-item"><span class="result-label">Response Size</span><span class="result-value">' + text.length + ' bytes</span></div>' +
+          '<div class="result-item"><span class="result-label">Route</span><span class="result-value">SW → Relay → SOCKS5</span></div>';
+        log('Ad script fetch successful! Size: ' + text.length + ' bytes', 'success');
+        log('This confirms that ad requests can be routed through the proxy', 'info');
+      } catch (error) {
+        resultEl.innerHTML = '<div style="color: #ff4444;">❌ Error: ' + error.message + '</div>';
+        log('Ad script fetch error: ' + error.message, 'error');
+      }
+    }
+    
+    // Initialize
+    checkServiceWorker();
+    
+    // Listen for SW messages
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        log('SW Message: ' + JSON.stringify(event.data), 'info');
+      });
+    }
+  </script>
+</body>
+</html>
+

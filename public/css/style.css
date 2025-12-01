@@ -1,0 +1,207 @@
+/* Reset and Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --primary-color: #6366f1;
+  --primary-hover: #4f46e5;
+  --background: #0f172a;
+  --card-bg: #1e293b;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --border-color: #334155;
+  --success-color: #22c55e;
+  --error-color: #ef4444;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: var(--background);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+}
+
+/* Background Pattern */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 80%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 40% 40%, rgba(59, 130, 246, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.container {
+  width: 100%;
+  max-width: 480px;
+  padding: 20px;
+}
+
+/* Card Styles */
+.card {
+  background: var(--card-bg);
+  border-radius: 24px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.card-content {
+  padding: 60px 40px;
+  text-align: center;
+}
+
+.card h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, #f8fafc 0%, #94a3b8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.card p {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  margin-bottom: 40px;
+  line-height: 1.6;
+}
+
+/* Proceed Button */
+.proceed-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: linear-gradient(135deg, var(--primary-color) 0%, #8b5cf6 100%);
+  color: white;
+  border: none;
+  padding: 18px 48px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.proceed-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: left 0.5s ease;
+}
+
+.proceed-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 20px 40px -15px rgba(99, 102, 241, 0.5),
+    0 0 20px rgba(99, 102, 241, 0.3);
+}
+
+.proceed-btn:hover::before {
+  left: 100%;
+}
+
+.proceed-btn:active {
+  transform: translateY(0);
+}
+
+.proceed-btn svg {
+  transition: transform 0.3s ease;
+}
+
+.proceed-btn:hover svg {
+  transform: translateX(4px);
+}
+
+/* Error Card Styles */
+.error-card {
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.error-icon {
+  font-size: 4rem;
+  margin-bottom: 20px;
+}
+
+.error-card h1 {
+  background: linear-gradient(135deg, var(--error-color) 0%, #f87171 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Loading State */
+.proceed-btn.loading {
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+.proceed-btn.loading span {
+  opacity: 0;
+}
+
+.proceed-btn.loading svg {
+  opacity: 0;
+}
+
+.proceed-btn.loading::after {
+  content: '';
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border: 3px solid transparent;
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .card-content {
+    padding: 40px 24px;
+  }
+
+  .card h1 {
+    font-size: 2rem;
+  }
+
+  .proceed-btn {
+    padding: 16px 36px;
+    font-size: 1rem;
+  }
+}
+

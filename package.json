@@ -1,0 +1,37 @@
+{
+  "name": "proxy-gateway",
+  "version": "1.0.0",
+  "description": "Web Proxy Gateway with 922proxy integration",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js"
+  },
+  "keywords": [
+    "proxy",
+    "gateway",
+    "socks5"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.3.1",
+    "ejs": "^3.1.9",
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
+    "helmet": "^7.1.0",
+    "https-proxy-agent": "^7.0.6",
+    "morgan": "^1.10.0",
+    "proxy-chain": "^2.6.0",
+    "socks": "^2.8.7",
+    "socks-proxy-agent": "^8.0.2",
+    "undici": "^7.16.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
