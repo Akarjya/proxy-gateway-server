@@ -122,10 +122,77 @@ function makeAbsoluteUrl(url, baseUrl) {
 }
 
 /**
+ * Get the original target URL from storage or default
+ * This is used to replace proxy URLs in ad requests
+ */
+function getOriginalTargetUrl() {
+  // This will be set by the page when it loads
+  return self.ORIGINAL_TARGET_URL || 'https://dating.atolf.xyz/';
+}
+
+/**
+ * Modify URL for ad requests to use original domain
+ * This helps Google ads verify the correct domain
+ */
+function modifyAdRequestUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    
+    // Check if this is a Google ad request
+    const isAdRequest = urlObj.hostname.includes('googlesyndication') ||
+                        urlObj.hostname.includes('doubleclick') ||
+                        urlObj.hostname.includes('googleads') ||
+                        urlObj.hostname.includes('adtrafficquality');
+    
+    if (isAdRequest) {
+      // Replace proxy URL with original URL in query parameters
+      const proxyOrigin = self.location.origin;
+      const originalUrl = getOriginalTargetUrl();
+      const originalOrigin = new URL(originalUrl).origin;
+      
+      // Modify the URL parameter that Google uses for domain verification
+      let modifiedSearch = urlObj.search;
+      
+      // Replace encoded proxy URLs
+      modifiedSearch = modifiedSearch.replace(
+        new RegExp(encodeURIComponent(proxyOrigin + '/browse'), 'g'),
+        encodeURIComponent(originalUrl)
+      );
+      modifiedSearch = modifiedSearch.replace(
+        new RegExp(encodeURIComponent(proxyOrigin), 'g'),
+        encodeURIComponent(originalOrigin)
+      );
+      
+      // Replace non-encoded proxy URLs
+      modifiedSearch = modifiedSearch.replace(
+        new RegExp(proxyOrigin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/browse', 'g'),
+        originalUrl
+      );
+      modifiedSearch = modifiedSearch.replace(
+        new RegExp(proxyOrigin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+        originalOrigin
+      );
+      
+      urlObj.search = modifiedSearch;
+      
+      log('Modified ad URL:', url.substring(0, 60), '->', urlObj.href.substring(0, 60));
+      return urlObj.href;
+    }
+  } catch (e) {
+    logError('Failed to modify ad URL:', e.message);
+  }
+  
+  return url;
+}
+
+/**
  * Relay a request through our proxy server
  */
 async function relayRequest(request) {
-  const originalUrl = request.url;
+  let originalUrl = request.url;
+  
+  // Modify ad request URLs to use original domain
+  originalUrl = modifyAdRequestUrl(originalUrl);
   
   // Build relay URL
   const relayUrl = new URL(RELAY_ENDPOINT, self.location.origin);
@@ -138,7 +205,16 @@ async function relayRequest(request) {
   for (const name of headerNames) {
     const value = request.headers.get(name);
     if (value) {
-      headersToForward[name] = value;
+      // Modify referer to use original URL for ad requests
+      if (name === 'referer') {
+        const proxyOrigin = self.location.origin;
+        const originalTargetUrl = getOriginalTargetUrl();
+        const originalOrigin = new URL(originalTargetUrl).origin;
+        headersToForward[name] = value.replace(proxyOrigin + '/browse', originalTargetUrl)
+                                       .replace(proxyOrigin, originalOrigin);
+      } else {
+        headersToForward[name] = value;
+      }
     }
   }
   
@@ -258,6 +334,12 @@ self.addEventListener('message', (event) => {
   
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
+  }
+  
+  // Receive original target URL from page for ad URL modification
+  if (event.data && event.data.type === 'SET_ORIGINAL_URL') {
+    self.ORIGINAL_TARGET_URL = event.data.url;
+    log('Original target URL set:', self.ORIGINAL_TARGET_URL);
   }
 });
 

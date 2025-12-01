@@ -257,13 +257,153 @@ router.get('/browse*', async (req, res) => {
       // Rewrite HTML and inject Service Worker + fallback CORS bypass
       let rewrittenHtml = rewriteService.rewriteHtml(response.data, config.target.url);
       
+      // Get original target URL for ad script spoofing
+      const targetUrl = new URL(config.target.url);
+      const originalOrigin = targetUrl.origin;
+      const originalHref = config.target.url;
+      
       // Inject Service Worker registration and fallback interceptors
       // SW will handle external requests (including ads) through /relay
       // Fallback interceptors handle requests before SW activates
+      // Also inject URL spoofing for Google Ads compatibility
       const proxyInterceptScript = `
 <script>
 (function() {
   'use strict';
+  
+  // ========================================
+  // GOOGLE ADS URL SPOOFING
+  // ========================================
+  // Google Ads checks window.location to verify domain authorization
+  // We need to make ad scripts see the original target URL
+  // This runs BEFORE any other scripts to intercept ad URL detection
+  
+  var ORIGINAL_URL = '${originalHref}';
+  var ORIGINAL_ORIGIN = '${originalOrigin}';
+  var ORIGINAL_HOSTNAME = '${targetUrl.hostname}';
+  var ORIGINAL_PATHNAME = '${targetUrl.pathname}';
+  
+  // Store original location methods
+  var realLocation = window.location;
+  
+  // Create a location-like object for ads
+  var spoofedLocation = {
+    href: ORIGINAL_URL,
+    origin: ORIGINAL_ORIGIN,
+    hostname: ORIGINAL_HOSTNAME,
+    host: ORIGINAL_HOSTNAME,
+    pathname: ORIGINAL_PATHNAME || '/',
+    protocol: 'https:',
+    port: '',
+    search: realLocation.search,
+    hash: realLocation.hash,
+    ancestorOrigins: realLocation.ancestorOrigins,
+    assign: function(url) { realLocation.assign(url); },
+    replace: function(url) { realLocation.replace(url); },
+    reload: function() { realLocation.reload(); },
+    toString: function() { return ORIGINAL_URL; }
+  };
+  
+  // Intercept googletag and adsbygoogle initialization
+  // These scripts read location early, so we patch their URL detection
+  
+  // Method 1: Override encodeURIComponent for URL parameters
+  var originalEncodeURI = window.encodeURIComponent;
+  window.encodeURIComponent = function(str) {
+    if (typeof str === 'string') {
+      // Replace proxy URL with original URL in ad request parameters
+      str = str.replace(/https?:\\/\\/[^/]*\\/browse/g, ORIGINAL_ORIGIN);
+      str = str.replace(new RegExp(realLocation.origin, 'g'), ORIGINAL_ORIGIN);
+      str = str.replace(new RegExp(realLocation.hostname, 'g'), ORIGINAL_HOSTNAME);
+    }
+    return originalEncodeURI(str);
+  };
+  
+  // Method 2: Patch URL constructor to fix ad URLs
+  var OriginalURL = window.URL;
+  window.URL = function(url, base) {
+    // If constructing URL from current location, use original
+    if (url === realLocation.href || url === realLocation.origin) {
+      url = url.replace(realLocation.origin, ORIGINAL_ORIGIN);
+    }
+    if (base === realLocation.href || base === realLocation.origin) {
+      base = base.replace(realLocation.origin, ORIGINAL_ORIGIN);
+    }
+    return new OriginalURL(url, base);
+  };
+  window.URL.prototype = OriginalURL.prototype;
+  window.URL.createObjectURL = OriginalURL.createObjectURL;
+  window.URL.revokeObjectURL = OriginalURL.revokeObjectURL;
+  
+  // Method 3: Override document.URL and document.documentURI
+  try {
+    Object.defineProperty(document, 'URL', {
+      get: function() { return ORIGINAL_URL; },
+      configurable: true
+    });
+    Object.defineProperty(document, 'documentURI', {
+      get: function() { return ORIGINAL_URL; },
+      configurable: true
+    });
+  } catch(e) {
+    console.log('[Proxy] Could not override document.URL');
+  }
+  
+  // Method 4: Create a getter trap for common ad script patterns
+  // Ad scripts often do: var url = location.href || document.location.href
+  // We intercept String() calls on location
+  var originalToString = Location.prototype.toString;
+  Location.prototype.toString = function() {
+    // Check if this is being called from an ad context
+    var stack = new Error().stack || '';
+    if (stack.includes('googlesyndication') || 
+        stack.includes('doubleclick') || 
+        stack.includes('googleads') ||
+        stack.includes('adsbygoogle')) {
+      return ORIGINAL_URL;
+    }
+    return originalToString.call(this);
+  };
+  
+  // Method 5: Intercept iframe creation for ad containers
+  var originalCreateElement = document.createElement;
+  document.createElement = function(tagName) {
+    var element = originalCreateElement.call(document, tagName);
+    if (tagName.toLowerCase() === 'iframe') {
+      // For ad iframes, try to set referrer policy
+      setTimeout(function() {
+        try {
+          if (element.contentWindow && element.src && 
+              (element.src.includes('googlesyndication') || 
+               element.src.includes('doubleclick'))) {
+            // Ad iframe detected
+            console.log('[Proxy] Ad iframe detected');
+          }
+        } catch(e) {}
+      }, 100);
+    }
+    return element;
+  };
+  
+  // Method 6: Intercept postMessage for ad verification
+  var originalPostMessage = window.postMessage;
+  window.postMessage = function(message, targetOrigin, transfer) {
+    // Modify messages that contain our proxy URL
+    if (typeof message === 'string' && message.includes(realLocation.origin)) {
+      message = message.replace(new RegExp(realLocation.origin, 'g'), ORIGINAL_ORIGIN);
+    } else if (typeof message === 'object' && message !== null) {
+      try {
+        var msgStr = JSON.stringify(message);
+        if (msgStr.includes(realLocation.origin)) {
+          msgStr = msgStr.replace(new RegExp(realLocation.origin, 'g'), ORIGINAL_ORIGIN);
+          message = JSON.parse(msgStr);
+        }
+      } catch(e) {}
+    }
+    return originalPostMessage.call(this, message, targetOrigin, transfer);
+  };
+  
+  console.log('[Proxy] Ad URL spoofing initialized for:', ORIGINAL_URL);
   
   // ========================================
   // SERVICE WORKER REGISTRATION
@@ -277,14 +417,35 @@ router.get('/browse*', async (req, res) => {
         console.log('[Proxy] Service Worker registered successfully');
         console.log('[Proxy] Scope:', registration.scope);
         
-        // If there's a waiting SW, activate it
+        // Send original URL to Service Worker for ad URL modification
+        function sendOriginalUrl(sw) {
+          if (sw) {
+            sw.postMessage({ type: 'SET_ORIGINAL_URL', url: ORIGINAL_URL });
+            console.log('[Proxy] Sent original URL to Service Worker');
+          }
+        }
+        
+        // Send to active SW
+        if (navigator.serviceWorker.controller) {
+          sendOriginalUrl(navigator.serviceWorker.controller);
+        }
+        
+        // If there's a waiting SW, activate it and send URL
         if (registration.waiting) {
           registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+          sendOriginalUrl(registration.waiting);
         }
         
         // Listen for updates
         registration.addEventListener('updatefound', function() {
           console.log('[Proxy] Service Worker update found');
+          if (registration.installing) {
+            registration.installing.addEventListener('statechange', function() {
+              if (this.state === 'activated') {
+                sendOriginalUrl(this);
+              }
+            });
+          }
         });
       })
       .catch(function(error) {
@@ -292,9 +453,12 @@ router.get('/browse*', async (req, res) => {
         console.log('[Proxy] Falling back to fetch/XHR interceptors');
       });
     
-    // Handle SW controller change
+    // Handle SW controller change - send original URL to new controller
     navigator.serviceWorker.addEventListener('controllerchange', function() {
       console.log('[Proxy] Service Worker controller changed');
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'SET_ORIGINAL_URL', url: ORIGINAL_URL });
+      }
     });
   } else {
     console.warn('[Proxy] Service Workers not supported, using fallback');
