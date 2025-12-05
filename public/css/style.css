@@ -6,28 +6,35 @@
 }
 
 :root {
-  --primary-color: #6366f1;
-  --primary-hover: #4f46e5;
-  --background: #0f172a;
-  --card-bg: #1e293b;
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --border-color: #334155;
+  --primary-color: #e11d48;
+  --primary-hover: #be123c;
+  --primary-light: #fb7185;
+  --secondary-color: #f43f5e;
+  --accent-color: #fda4af;
+  --background: #0c0a09;
+  --background-secondary: #1c1917;
+  --card-bg: linear-gradient(145deg, #1c1917 0%, #0c0a09 100%);
+  --text-primary: #fef2f2;
+  --text-secondary: #fca5a5;
+  --text-muted: #a8a29e;
+  --border-color: rgba(225, 29, 72, 0.3);
   --success-color: #22c55e;
   --error-color: #ef4444;
+  --gold: #fbbf24;
 }
 
 body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Poppins', 'Segoe UI', sans-serif;
   background: var(--background);
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-primary);
+  overflow-x: hidden;
 }
 
-/* Background Pattern */
+/* Romantic Background Pattern */
 body::before {
   content: '';
   position: fixed;
@@ -36,50 +43,193 @@ body::before {
   right: 0;
   bottom: 0;
   background: 
-    radial-gradient(circle at 20% 80%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 40% 40%, rgba(59, 130, 246, 0.1) 0%, transparent 50%);
+    radial-gradient(circle at 10% 20%, rgba(225, 29, 72, 0.2) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(244, 63, 94, 0.15) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, rgba(251, 113, 133, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 10%, rgba(253, 164, 175, 0.1) 0%, transparent 30%);
   pointer-events: none;
   z-index: -1;
 }
 
+/* Floating Hearts Animation */
+.floating-hearts {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.heart {
+  position: absolute;
+  font-size: 1.5rem;
+  opacity: 0;
+  animation: floatUp 8s ease-in-out infinite;
+}
+
+.heart:nth-child(1) { left: 5%; animation-delay: 0s; }
+.heart:nth-child(2) { left: 15%; animation-delay: 1s; }
+.heart:nth-child(3) { left: 25%; animation-delay: 2s; }
+.heart:nth-child(4) { left: 45%; animation-delay: 0.5s; }
+.heart:nth-child(5) { left: 65%; animation-delay: 3s; }
+.heart:nth-child(6) { left: 75%; animation-delay: 1.5s; }
+.heart:nth-child(7) { left: 85%; animation-delay: 2.5s; }
+.heart:nth-child(8) { left: 95%; animation-delay: 0.8s; }
+
+@keyframes floatUp {
+  0% {
+    bottom: -10%;
+    opacity: 0;
+    transform: translateX(0) rotate(0deg);
+  }
+  10% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.4;
+  }
+  100% {
+    bottom: 110%;
+    opacity: 0;
+    transform: translateX(50px) rotate(45deg);
+  }
+}
+
 .container {
   width: 100%;
-  max-width: 480px;
+  max-width: 440px;
   padding: 20px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Badge Styles */
+.badge {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, var(--gold) 0%, #f59e0b 100%);
+  color: #0c0a09;
+  padding: 6px 20px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 15px rgba(251, 191, 36, 0.4);
+  z-index: 10;
 }
 
 /* Card Styles */
 .card {
   background: var(--card-bg);
-  border-radius: 24px;
+  border-radius: 28px;
   border: 1px solid var(--border-color);
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
   box-shadow: 
-    0 25px 50px -12px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(255, 255, 255, 0.05);
+    0 30px 60px -15px rgba(225, 29, 72, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .card-content {
-  padding: 60px 40px;
+  padding: 50px 32px 40px;
   text-align: center;
 }
 
-.card h1 {
-  font-size: 2.5rem;
-  font-weight: 700;
+.logo-icon {
+  font-size: 3.5rem;
   margin-bottom: 16px;
-  background: linear-gradient(135deg, #f8fafc 0%, #94a3b8 100%);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.card h1 {
+  font-size: 1.85rem;
+  font-weight: 800;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.card h1 .highlight {
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-.card p {
+.tagline {
   color: var(--text-secondary);
-  font-size: 1.1rem;
-  margin-bottom: 40px;
+  font-size: 1rem;
+  margin-bottom: 28px;
   line-height: 1.6;
+  font-weight: 400;
+}
+
+/* Stats Row */
+.stats-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background: rgba(225, 29, 72, 0.1);
+  border-radius: 16px;
+  border: 1px solid rgba(225, 29, 72, 0.2);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat-number {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--primary-light);
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-divider {
+  width: 1px;
+  height: 35px;
+  background: rgba(225, 29, 72, 0.3);
+}
+
+/* Features */
+.features {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.feature {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.feature-icon {
+  font-size: 1rem;
 }
 
 /* Proceed Button */
@@ -88,18 +238,30 @@ body::before {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: linear-gradient(135deg, var(--primary-color) 0%, #8b5cf6 100%);
+  background: linear-gradient(135deg, var(--primary-color) 0%, #be123c 50%, var(--primary-color) 100%);
+  background-size: 200% 200%;
   color: white;
   border: none;
   padding: 18px 48px;
   font-size: 1.1rem;
-  font-weight: 600;
-  border-radius: 16px;
+  font-weight: 700;
+  border-radius: 50px;
   cursor: pointer;
   transition: all 0.3s ease;
   text-decoration: none;
   position: relative;
   overflow: hidden;
+  width: 100%;
+  max-width: 320px;
+  animation: shimmer 3s ease-in-out infinite;
+  box-shadow: 
+    0 8px 30px -5px rgba(225, 29, 72, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+@keyframes shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 .proceed-btn::before {
@@ -112,17 +274,18 @@ body::before {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.2),
+    rgba(255, 255, 255, 0.3),
     transparent
   );
-  transition: left 0.5s ease;
+  transition: left 0.6s ease;
 }
 
 .proceed-btn:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px) scale(1.02);
   box-shadow: 
-    0 20px 40px -15px rgba(99, 102, 241, 0.5),
-    0 0 20px rgba(99, 102, 241, 0.3);
+    0 15px 40px -10px rgba(225, 29, 72, 0.6),
+    0 0 30px rgba(225, 29, 72, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .proceed-btn:hover::before {
@@ -130,15 +293,39 @@ body::before {
 }
 
 .proceed-btn:active {
-  transform: translateY(0);
+  transform: translateY(-1px) scale(1);
 }
 
 .proceed-btn svg {
   transition: transform 0.3s ease;
+  fill: rgba(255, 255, 255, 0.3);
 }
 
 .proceed-btn:hover svg {
-  transform: translateX(4px);
+  transform: scale(1.2);
+  animation: heartbeat 0.6s ease-in-out infinite;
+}
+
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1.2); }
+  50% { transform: scale(1.4); }
+}
+
+/* Disclaimer */
+.disclaimer {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 20px;
+  opacity: 0.7;
+}
+
+/* Footer Text */
+.footer-text {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 20px;
+  opacity: 0.6;
 }
 
 /* Error Card Styles */
@@ -191,17 +378,42 @@ body::before {
 
 /* Responsive */
 @media (max-width: 480px) {
+  .container {
+    padding: 16px;
+  }
+  
   .card-content {
-    padding: 40px 24px;
+    padding: 45px 20px 32px;
   }
 
   .card h1 {
-    font-size: 2rem;
+    font-size: 1.5rem;
+  }
+  
+  .tagline {
+    font-size: 0.9rem;
   }
 
   .proceed-btn {
     padding: 16px 36px;
     font-size: 1rem;
   }
+  
+  .stats-row {
+    gap: 10px;
+    padding: 12px;
+  }
+  
+  .stat-number {
+    font-size: 1.1rem;
+  }
+  
+  .stat-label {
+    font-size: 0.65rem;
+  }
+  
+  .badge {
+    font-size: 0.7rem;
+    padding: 5px 16px;
+  }
 }
-

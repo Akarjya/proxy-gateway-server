@@ -4,28 +4,81 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= title %></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
+  <div class="floating-hearts">
+    <span class="heart">💕</span>
+    <span class="heart">❤️</span>
+    <span class="heart">💖</span>
+    <span class="heart">💗</span>
+    <span class="heart">💘</span>
+    <span class="heart">💕</span>
+    <span class="heart">❤️</span>
+    <span class="heart">💖</span>
+  </div>
+  
   <div class="container">
     <div class="card">
+      <div class="badge">🔥 #1 Dating Platform</div>
+      
       <div class="card-content">
-        <h1>Welcome</h1>
-        <p>Click the button below to proceed</p>
+        <div class="logo-icon">💝</div>
+        
+        <h1>Find Your <span class="highlight">Soulmate</span> Today</h1>
+        
+        <p class="tagline">Apne sapno ki partner se miliye – Real connections, Real people</p>
+        
+        <div class="stats-row">
+          <div class="stat">
+            <span class="stat-number">50L+</span>
+            <span class="stat-label">Active Users</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat">
+            <span class="stat-number">15K+</span>
+            <span class="stat-label">Daily Matches</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat">
+            <span class="stat-number">98%</span>
+            <span class="stat-label">Success Rate</span>
+          </div>
+        </div>
+
+        <div class="features">
+          <div class="feature">
+            <span class="feature-icon">✅</span>
+            <span>100% Verified Profiles</span>
+          </div>
+          <div class="feature">
+            <span class="feature-icon">🔒</span>
+            <span>Privacy Protected</span>
+          </div>
+          <div class="feature">
+            <span class="feature-icon">💬</span>
+            <span>Free Chat Available</span>
+          </div>
+        </div>
         
         <form action="/proceed" method="POST" id="proceed-form">
           <button type="submit" class="proceed-btn" id="proceed-btn">
-            <span>PROCEED</span>
+            <span>Meet Girls Now</span>
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-              <polyline points="12 5 19 12 12 19"></polyline>
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
             </svg>
           </button>
         </form>
+
+        <p class="disclaimer">18+ Only • Sirf serious log join karein</p>
       </div>
     </div>
+    
+    <p class="footer-text">Trusted by millions of Indians 🇮🇳</p>
   </div>
   <script src="/js/main.js"></script>
 </body>
 </html>
-
