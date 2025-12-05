@@ -1,10 +1,17 @@
 /**
  * Configuration Manager
  * Centralizes all configuration and makes it easy to change target URL
- * Target: datingg.atolf.xyz
+ * 
+ * IMPORTANT: Set TARGET_URL in environment variables (Render Dashboard)
+ * to change the target website. No code changes needed!
  */
 
 require('dotenv').config();
+
+// Validate required environment variable in production
+if (process.env.NODE_ENV === 'production' && !process.env.TARGET_URL) {
+  console.warn('⚠️  WARNING: TARGET_URL environment variable not set! Using fallback.');
+}
 
 const config = {
   // Server settings
@@ -14,9 +21,10 @@ const config = {
     sessionSecret: process.env.SESSION_SECRET || 'change-this-secret'
   },
 
-  // Target website - CHANGE THIS TO UPDATE TARGET
+  // Target website - SET VIA ENVIRONMENT VARIABLE (TARGET_URL)
+  // Fallback is only for local development
   target: {
-    url: process.env.TARGET_URL || 'https://datingg.atolf.xyz/',
+    url: process.env.TARGET_URL || 'https://example.com/',
     // Extract base domain for cookie handling
     get domain() {
       try {
