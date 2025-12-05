@@ -1,7 +1,7 @@
 /**
  * Configuration Manager
  * Centralizes all configuration and makes it easy to change target URL
- * Target: whatismyipaddress.com
+ * Target: datingg.atolf.xyz
  */
 
 require('dotenv').config();
@@ -16,7 +16,7 @@ const config = {
 
   // Target website - CHANGE THIS TO UPDATE TARGET
   target: {
-    url: process.env.TARGET_URL || 'https://whatismyipaddress.com/',
+    url: process.env.TARGET_URL || 'https://datingg.atolf.xyz/',
     // Extract base domain for cookie handling
     get domain() {
       try {
