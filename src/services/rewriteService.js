@@ -51,6 +51,49 @@ class RewriteService {
       }
     });
 
+    // Rewrite lazy-loaded images (data-src, data-srcset, data-lazy-src, etc.)
+    $('img[data-src], [data-src]').each((_, element) => {
+      const dataSrc = $(element).attr('data-src');
+      const newDataSrc = this.rewriteUrl(dataSrc, targetDomain);
+      if (newDataSrc) {
+        $(element).attr('data-src', newDataSrc);
+      }
+    });
+
+    $('img[data-srcset], [data-srcset]').each((_, element) => {
+      const dataSrcset = $(element).attr('data-srcset');
+      const newDataSrcset = this.rewriteSrcset(dataSrcset, targetDomain);
+      if (newDataSrcset) {
+        $(element).attr('data-srcset', newDataSrcset);
+      }
+    });
+
+    $('[data-lazy-src]').each((_, element) => {
+      const lazySrc = $(element).attr('data-lazy-src');
+      const newLazySrc = this.rewriteUrl(lazySrc, targetDomain);
+      if (newLazySrc) {
+        $(element).attr('data-lazy-src', newLazySrc);
+      }
+    });
+
+    $('[data-lazy-srcset]').each((_, element) => {
+      const lazySrcset = $(element).attr('data-lazy-srcset');
+      const newLazySrcset = this.rewriteSrcset(lazySrcset, targetDomain);
+      if (newLazySrcset) {
+        $(element).attr('data-lazy-srcset', newLazySrcset);
+      }
+    });
+
+    // Rewrite background images in data attributes
+    $('[data-bg], [data-background]').each((_, element) => {
+      const dataBg = $(element).attr('data-bg') || $(element).attr('data-background');
+      const attrName = $(element).attr('data-bg') ? 'data-bg' : 'data-background';
+      const newDataBg = this.rewriteUrl(dataBg, targetDomain);
+      if (newDataBg) {
+        $(element).attr(attrName, newDataBg);
+      }
+    });
+
     // Rewrite stylesheets
     $('link[href]').each((_, element) => {
       const href = $(element).attr('href');
