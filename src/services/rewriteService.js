@@ -94,6 +94,33 @@ class RewriteService {
       }
     });
 
+    // Rewrite custom data-img attribute (used by some sites for card images)
+    $('[data-img]').each((_, element) => {
+      const dataImg = $(element).attr('data-img');
+      const newDataImg = this.rewriteUrl(dataImg, targetDomain);
+      if (newDataImg) {
+        $(element).attr('data-img', newDataImg);
+      }
+    });
+
+    // Rewrite custom data-href attribute (used for JavaScript navigation)
+    $('[data-href]').each((_, element) => {
+      const dataHref = $(element).attr('data-href');
+      const newDataHref = this.rewriteUrl(dataHref, targetDomain);
+      if (newDataHref) {
+        $(element).attr('data-href', newDataHref);
+      }
+    });
+
+    // Rewrite data-image attribute
+    $('[data-image]').each((_, element) => {
+      const dataImage = $(element).attr('data-image');
+      const newDataImage = this.rewriteUrl(dataImage, targetDomain);
+      if (newDataImage) {
+        $(element).attr('data-image', newDataImage);
+      }
+    });
+
     // Rewrite stylesheets
     $('link[href]').each((_, element) => {
       const href = $(element).attr('href');
