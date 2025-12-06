@@ -46,7 +46,15 @@
       </header>
 
       <!-- Featured Image -->
-      <img src="/images/featured.jpg" alt="<%= post.title.en %>" class="post-image">
+      <div class="post-featured-image">
+        <div class="featured-content">
+          <span class="featured-emoji"><%= post.emoji %></span>
+          <span class="featured-text">
+            <span class="featured-text-hi lang-hi"><%= post.imageText.hi %></span>
+            <span class="lang-en"><%= post.imageText.en %></span>
+          </span>
+        </div>
+      </div>
 
       <!-- Ad Slot 1 - BAN1 -->
       <div class="ad-container">

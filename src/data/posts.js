@@ -16,8 +16,8 @@ const posts = {
       en: '🔥 Best Dating Apps in India 2025 — Tinder, Bumble & More'
     },
     imageText: {
-      hi: 'डेटिंग ऐप्स गाइड',
-      en: 'Dating Apps Guide'
+      hi: 'इस App में 5 मिनट में GF बनाओ!',
+      en: 'Find Your Match in 5 Minutes!'
     },
     metaDesc: 'Best dating apps in India 2025. Complete review of Tinder, Bumble, Hinge, Aisle and more.',
     content: `
@@ -161,8 +161,8 @@ const posts = {
       en: '🌹 First Date Tips — How to Impress Her?'
     },
     imageText: {
-      hi: 'फर्स्ट डेट गाइड',
-      en: 'First Date Guide'
+      hi: 'पहली Date पर कैसे Impress करें?',
+      en: 'How to Impress on First Date?'
     },
     metaDesc: 'First date tips for Indian men. What to do, what not to do, conversation tips and more.',
     content: `
@@ -292,8 +292,8 @@ const posts = {
       en: '📸 How to Create the Perfect Dating Profile? Bio & Photo Tips'
     },
     imageText: {
-      hi: 'प्रोफाइल गाइड',
-      en: 'Profile Guide'
+      hi: 'Profile से मिलेंगे 10x ज्यादा Match!',
+      en: 'Get 10x More Matches with Profile!'
     },
     metaDesc: 'Dating profile tips for Indian men. Best bio ideas, photo tips, and common mistakes to avoid.',
     content: `
@@ -415,8 +415,8 @@ const posts = {
       en: '💬 How to Start a Conversation? Best Opening Lines'
     },
     imageText: {
-      hi: 'चैट गाइड',
-      en: 'Chat Guide'
+      hi: 'ये Lines से 100% Reply आएगा!',
+      en: 'These Lines Get 100% Replies!'
     },
     metaDesc: 'Best conversation starters and opening lines for dating apps. Get more replies with these tips.',
     content: `
@@ -542,8 +542,8 @@ const posts = {
       en: '💑 Relationship Tips — How to Keep Her Happy?'
     },
     imageText: {
-      hi: 'रिलेशनशिप गाइड',
-      en: 'Relationship Guide'
+      hi: 'GF को खुश रखने के Secret Tips!',
+      en: 'Secret Tips to Keep Your GF Happy!'
     },
     metaDesc: 'Relationship tips for Indian men. How to build trust, communicate better and keep your girlfriend happy.',
     content: `
