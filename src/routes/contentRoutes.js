@@ -1,18 +1,33 @@
 /**
  * Content Routes
  * Serves blog posts, homepage, and policy pages
+ * 
+ * IMPORTANT: All routes here require an active proxy session
+ * Users without a session will be redirected to /loader
  */
 
 const express = require('express');
 const router = express.Router();
 const logger = require('../utils/logger');
 const posts = require('../data/posts');
+const { requireProxySession } = require('../middleware/proxySessionMiddleware');
+
+/**
+ * Apply proxy session middleware to ALL content routes
+ * This ensures no one can access content without going through loader
+ * which activates the Service Worker for proxy protection
+ */
+router.use(requireProxySession({
+  excludePaths: [] // No exclusions - all content routes require session
+}));
 
 /**
  * GET / - Homepage with all posts
  */
 router.get('/', (req, res) => {
-  logger.info('Serving homepage');
+  logger.info('Serving homepage', {
+    proxySessionId: req.session.proxySessionId
+  });
   res.render('home', {
     title: 'Dating & Relationship Tips | atolf.xyz',
     posts: posts
@@ -35,7 +50,10 @@ router.get('/post/:slug', (req, res) => {
     });
   }
   
-  logger.info('Serving post', { slug });
+  logger.info('Serving post', { 
+    slug,
+    proxySessionId: req.session.proxySessionId 
+  });
   res.render('post', {
     title: post.title.en + ' | atolf.xyz',
     post: post

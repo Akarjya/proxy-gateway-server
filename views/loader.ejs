@@ -10,6 +10,88 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/loader.css">
+  <style>
+    /* Error state styles */
+    .loader-card.error {
+      border-color: rgba(255, 107, 107, 0.4);
+      box-shadow: 
+        0 25px 50px -12px rgba(0, 0, 0, 0.5),
+        0 0 40px rgba(255, 107, 107, 0.3);
+    }
+    
+    .loader-card.error .logo-ring {
+      background: linear-gradient(135deg, #ff6b6b, #ee5a5a);
+      box-shadow: 0 0 30px rgba(255, 107, 107, 0.5);
+    }
+    
+    .retry-container {
+      display: none;
+      text-align: center;
+      margin-top: 20px;
+      padding: 20px;
+      background: rgba(255, 107, 107, 0.1);
+      border-radius: 16px;
+      border: 1px solid rgba(255, 107, 107, 0.2);
+    }
+    
+    .error-message {
+      color: #ff6b6b;
+      font-size: 14px;
+      margin-bottom: 15px;
+      line-height: 1.5;
+    }
+    
+    .retry-button {
+      background: linear-gradient(135deg, #ff2d55 0%, #ff6b8a 100%);
+      color: white;
+      border: none;
+      padding: 14px 32px;
+      border-radius: 30px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(255, 45, 85, 0.4);
+    }
+    
+    .retry-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 45, 85, 0.5);
+    }
+    
+    .retry-button:active {
+      transform: translateY(0);
+    }
+    
+    .troubleshoot-list {
+      text-align: left;
+      margin: 15px 0;
+      padding: 0 20px;
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+    
+    .troubleshoot-list li {
+      margin: 8px 0;
+    }
+    
+    /* Debug info (hidden by default) */
+    .debug-info {
+      display: none;
+      margin-top: 15px;
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: left;
+    }
+    
+    .debug-info.show {
+      display: block;
+    }
+  </style>
 </head>
 <body>
   <!-- Animated Background -->
@@ -30,7 +112,7 @@
   </div>
 
   <!-- Main Loader Container -->
-  <div class="loader-container">
+  <div class="loader-container" data-return-url="<%= typeof returnUrl !== 'undefined' ? returnUrl : '/' %>">
     <div class="loader-card">
       <!-- Logo Section -->
       <div class="logo-section">
@@ -43,7 +125,7 @@
       <!-- Loading Message - Hindi -->
       <div class="message-section">
         <h1 class="message-hindi">आपके लिए परफेक्ट पार्टनर ढूंढ रहे हैं...</h1>
-        <p class="message-hinglish">Aapke liye best matches <span id="countdown-text">5</span> seconds mein dikhayenge</p>
+        <p class="message-hinglish">Aapke liye best matches <span id="countdown-text">15</span> seconds mein dikhayenge</p>
       </div>
 
       <!-- Progress Section -->
@@ -75,13 +157,33 @@
             <circle class="countdown-bg" cx="50" cy="50" r="45"/>
             <circle class="countdown-progress" cx="50" cy="50" r="45" id="countdown-circle"/>
           </svg>
-          <div class="countdown-number" id="countdown-number">5</div>
+          <div class="countdown-number" id="countdown-number">15</div>
         </div>
       </div>
 
       <!-- Status Message -->
       <div class="status-section">
         <p class="status-text" id="status-text">🔒 Secure connection establish ho rahi hai...</p>
+      </div>
+
+      <!-- Retry Container (shown on error) -->
+      <div class="retry-container" id="retry-container">
+        <p class="error-message" id="error-message">
+          ⚠️ Connection establish nahi ho paya. Please retry karein.
+        </p>
+        <ul class="troubleshoot-list">
+          <li>🔄 Page refresh karein</li>
+          <li>🗑️ Browser cache clear karein</li>
+          <li>🌐 Different browser try karein</li>
+          <li>📶 Internet connection check karein</li>
+        </ul>
+        <button class="retry-button" id="retry-button">
+          🔄 Retry Karein
+        </button>
+        <div class="debug-info" id="debug-info">
+          Session: <%= typeof proxySessionId !== 'undefined' ? proxySessionId : 'N/A' %><br>
+          Return URL: <%= typeof returnUrl !== 'undefined' ? returnUrl : '/' %>
+        </div>
       </div>
 
       <!-- Trust Badges -->
@@ -107,6 +209,31 @@
 
   <!-- Loader Script -->
   <script src="/js/loader.js"></script>
+  
+  <!-- Debug toggle (triple tap on logo) -->
+  <script>
+    (function() {
+      var tapCount = 0;
+      var tapTimeout;
+      var logoSection = document.querySelector('.logo-section');
+      var debugInfo = document.getElementById('debug-info');
+      
+      if (logoSection && debugInfo) {
+        logoSection.addEventListener('click', function() {
+          tapCount++;
+          clearTimeout(tapTimeout);
+          
+          if (tapCount >= 3) {
+            debugInfo.classList.toggle('show');
+            tapCount = 0;
+          }
+          
+          tapTimeout = setTimeout(function() {
+            tapCount = 0;
+          }, 500);
+        });
+      }
+    })();
+  </script>
 </body>
 </html>
-

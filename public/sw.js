@@ -6,9 +6,11 @@
  * goes through the proxy server and destination sees PROXY IP
  * 
  * Same-domain requests are NOT intercepted (they're served directly by Express)
+ * 
+ * VERSION: Update this when making changes to force SW update
  */
 
-const SW_VERSION = '2.0.0';
+const SW_VERSION = '3.0.0';
 const RELAY_ENDPOINT = '/relay';
 
 // Paths that should NOT be relayed (our own server paths)
@@ -21,24 +23,33 @@ const BYPASS_PATTERNS = [
   /^\/content/,
   /^\/proceed/,
   /^\/reset/,
+  /^\/loader/,
+  /^\/api\//,
   
   // Static assets
   /^\/sw\.js/,
   /^\/css\//,
   /^\/js\//,
+  /^\/images\//,
   /^\/favicon/,
+  /^\/ads\.txt/,
   
   // Test endpoints
   /^\/test-ip/,
   /^\/test-http/,
+  /^\/sw-test/,
   
-  // Root (loader page)
+  // Content pages (served by Express)
   /^\/$/,
+  /^\/post\//,
+  /^\/about/,
+  /^\/contact/,
+  /^\/privacy/,
 ];
 
 // Log with prefix for easy filtering
 function log(...args) {
-  console.log('[SW]', ...args);
+  console.log('[SW v' + SW_VERSION + ']', ...args);
 }
 
 function logError(...args) {
@@ -52,18 +63,36 @@ self.addEventListener('install', (event) => {
   log('Installing Service Worker v' + SW_VERSION);
   
   // Skip waiting to activate immediately - CRITICAL for loader to work
-  event.waitUntil(self.skipWaiting());
+  event.waitUntil(
+    self.skipWaiting().then(() => {
+      log('skipWaiting completed');
+    })
+  );
 });
 
 /**
  * Activate event - called when SW becomes active
  */
 self.addEventListener('activate', (event) => {
-  log('Service Worker activated v' + SW_VERSION);
+  log('Activating Service Worker v' + SW_VERSION);
   
   // Take control of all pages immediately (don't wait for refresh)
   // This is CRITICAL - allows loader to detect SW is ready
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    self.clients.claim().then(() => {
+      log('clients.claim() completed - SW now controlling all pages');
+      
+      // Notify all clients that SW is now active
+      self.clients.matchAll().then(clients => {
+        clients.forEach(client => {
+          client.postMessage({
+            type: 'SW_ACTIVATED',
+            version: SW_VERSION
+          });
+        });
+      });
+    })
+  );
 });
 
 /**
@@ -151,6 +180,7 @@ async function relayRequest(request) {
     headers: {
       'Content-Type': 'application/json',
       'X-SW-Relay': 'true',
+      'X-SW-Version': SW_VERSION,
       'X-Original-Method': request.method,
     },
     body: JSON.stringify({
@@ -240,14 +270,17 @@ self.addEventListener('fetch', (event) => {
       relayRequest(request).catch((error) => {
         logError('Relay failed for:', url.substring(0, 60), error.message);
         
-        // Fallback: try direct fetch (will use user's real IP)
-        // This ensures the page doesn't break completely
-        return fetch(request).catch(() => {
-          // If even direct fetch fails, return error response
-          return new Response('Resource unavailable', {
-            status: 503,
-            statusText: 'Service Unavailable',
-          });
+        // Return error response - DO NOT fallback to direct fetch
+        // Direct fetch would expose user's real IP!
+        return new Response(JSON.stringify({
+          error: 'Proxy relay failed',
+          message: error.message
+        }), {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: {
+            'Content-Type': 'application/json'
+          }
         });
       })
     );
@@ -260,24 +293,60 @@ self.addEventListener('fetch', (event) => {
  * Message event - handle messages from pages
  */
 self.addEventListener('message', (event) => {
+  log('Received message:', event.data?.type);
+  
   if (event.data && event.data.type === 'GET_VERSION') {
-    event.ports[0].postMessage({ version: SW_VERSION });
+    if (event.ports && event.ports[0]) {
+      event.ports[0].postMessage({ version: SW_VERSION });
+    }
   }
   
   if (event.data && event.data.type === 'SKIP_WAITING') {
-    log('Received SKIP_WAITING message');
+    log('Received SKIP_WAITING message, calling skipWaiting()');
     self.skipWaiting();
+  }
+  
+  if (event.data && event.data.type === 'CLAIM_CLIENTS') {
+    log('Received CLAIM_CLIENTS message, calling clients.claim()');
+    self.clients.claim().then(() => {
+      log('clients.claim() completed from message');
+      // Notify the requesting client
+      if (event.source) {
+        event.source.postMessage({
+          type: 'CLIENTS_CLAIMED',
+          version: SW_VERSION
+        });
+      }
+    });
   }
   
   if (event.data && event.data.type === 'GET_STATUS') {
     // Respond with SW status
+    const response = {
+      type: 'SW_STATUS',
+      version: SW_VERSION,
+      controlling: true,
+      timestamp: Date.now()
+    };
+    
     if (event.source) {
-      event.source.postMessage({
-        type: 'SW_STATUS',
-        version: SW_VERSION,
-        controlling: true
-      });
+      event.source.postMessage(response);
     }
+    if (event.ports && event.ports[0]) {
+      event.ports[0].postMessage(response);
+    }
+  }
+  
+  if (event.data && event.data.type === 'PING') {
+    // Simple ping-pong for connectivity check
+    if (event.source) {
+      event.source.postMessage({ type: 'PONG', version: SW_VERSION });
+    }
+  }
+  
+  if (event.data && event.data.type === 'SET_ORIGINAL_URL') {
+    // Store original URL for ad URL spoofing
+    log('Received original URL:', event.data.url);
   }
 });
 

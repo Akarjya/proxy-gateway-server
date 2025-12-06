@@ -5,10 +5,14 @@
  * 1. Service Worker registration and activation
  * 2. Countdown timer display
  * 3. Progress animation
- * 4. Redirect to content when SW is ready (or timeout)
+ * 4. Redirect to content ONLY when SW is ready
  * 
- * MAX WAIT TIME: 5 seconds
- * If SW doesn't activate in time, proceed anyway (real IP fallback)
+ * IMPORTANT: We do NOT proceed without SW active!
+ * This would expose user's real IP which defeats the purpose of the proxy.
+ * If SW fails, user must retry - we show error with retry option.
+ * 
+ * MAX WAIT TIME: 15 seconds (increased from 5 for reliability)
+ * Extended retries: 3 attempts
  */
 
 (function() {
@@ -16,12 +20,27 @@
 
   // Configuration
   const CONFIG = {
-    MAX_WAIT_TIME: 5000,        // 5 seconds max wait
-    CONTENT_URL: '/',            // Where to redirect after SW ready (homepage)
-    SW_PATH: '/sw.js',           // Service Worker path
-    CHECK_INTERVAL: 100,         // How often to check SW status (ms)
-    COUNTDOWN_START: 5,          // Countdown starts from
+    MAX_WAIT_TIME: 15000,       // 15 seconds max wait per attempt
+    CONTENT_URL: '/',           // Default redirect (overridden by returnUrl)
+    SW_PATH: '/sw.js',          // Service Worker path
+    CHECK_INTERVAL: 100,        // How often to check SW status (ms)
+    COUNTDOWN_START: 15,        // Countdown starts from
+    MAX_RETRIES: 3,             // Maximum retry attempts
+    SW_CONFIRM_URL: '/api/sw-confirm', // Endpoint to confirm SW activation
   };
+
+  // Get return URL from data attribute or default
+  const loaderContainer = document.querySelector('.loader-container');
+  let returnUrl = loaderContainer?.dataset?.returnUrl || CONFIG.CONTENT_URL;
+  if (returnUrl === '' || returnUrl === 'undefined') {
+    returnUrl = CONFIG.CONTENT_URL;
+  }
+  
+  // Also check sessionStorage for saved URL (fallback)
+  const savedUrl = sessionStorage.getItem('redirectAfterLoader');
+  if (savedUrl && savedUrl !== '/loader') {
+    returnUrl = savedUrl;
+  }
 
   // State
   let countdownValue = CONFIG.COUNTDOWN_START;
@@ -29,6 +48,8 @@
   let swReady = false;
   let countdownInterval = null;
   let progressInterval = null;
+  let retryCount = 0;
+  let isRetrying = false;
 
   // DOM Elements
   const elements = {
@@ -41,6 +62,9 @@
     step2: document.getElementById('step-2'),
     step3: document.getElementById('step-3'),
     loaderCard: document.querySelector('.loader-card'),
+    retryContainer: document.getElementById('retry-container'),
+    retryButton: document.getElementById('retry-button'),
+    errorMessage: document.getElementById('error-message'),
   };
 
   // Status Messages (Hindi + Hinglish)
@@ -50,7 +74,10 @@
     activating: '🚀 Almost ready! Bas kuch seconds...',
     loading: '👤 Premium profiles load ho rahe hain...',
     ready: '✅ Tayaar! Aapko redirect kar rahe hain...',
-    timeout: '⏱️ Thoda time lag raha hai, proceed kar rahe hain...',
+    error: '⚠️ Connection problem. Please retry karo.',
+    retrying: '🔄 Retry kar rahe hain... Attempt ${count}/${max}',
+    swFailed: '❌ Service activation failed. Retry karein.',
+    swNotSupported: '⚠️ Aapka browser support nahi karta. Different browser try karein.',
   };
 
   /**
@@ -85,9 +112,14 @@
   /**
    * Update status message
    */
-  function updateStatus(key) {
+  function updateStatus(key, params = {}) {
     if (elements.statusText && STATUS_MESSAGES[key]) {
-      elements.statusText.textContent = STATUS_MESSAGES[key];
+      let message = STATUS_MESSAGES[key];
+      // Replace placeholders
+      Object.keys(params).forEach(k => {
+        message = message.replace('${' + k + '}', params[k]);
+      });
+      elements.statusText.textContent = message;
     }
   }
 
@@ -131,25 +163,86 @@
         step.classList.add('completed');
       }
     }
+    
+    // Hide retry container if visible
+    if (elements.retryContainer) {
+      elements.retryContainer.style.display = 'none';
+    }
+  }
+
+  /**
+   * Show error state with retry option
+   */
+  function showError(message) {
+    // Stop countdown
+    if (countdownInterval) clearInterval(countdownInterval);
+    if (progressInterval) clearInterval(progressInterval);
+    
+    // Update UI to error state
+    if (elements.loaderCard) {
+      elements.loaderCard.classList.add('error');
+    }
+    if (elements.countdownNumber) {
+      elements.countdownNumber.textContent = '!';
+      elements.countdownNumber.style.color = '#ff6b6b';
+    }
+    
+    updateStatus('error');
+    
+    // Show retry container
+    if (elements.retryContainer) {
+      elements.retryContainer.style.display = 'block';
+    }
+    if (elements.errorMessage) {
+      elements.errorMessage.textContent = message || STATUS_MESSAGES.swFailed;
+    }
+    
+    console.error('[Loader] Error:', message);
+  }
+
+  /**
+   * Confirm SW activation with server
+   */
+  async function confirmSWWithServer() {
+    try {
+      const response = await fetch(CONFIG.SW_CONFIRM_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[Loader] SW confirmation response:', data);
+        return data.success;
+      }
+    } catch (error) {
+      console.warn('[Loader] Failed to confirm SW with server:', error);
+    }
+    return false;
   }
 
   /**
    * Redirect to content page (or original destination)
    */
-  function goToContent() {
-    console.log('[Loader] Redirecting to content...');
+  async function goToContent() {
+    console.log('[Loader] Preparing to redirect...');
+    
+    // Confirm SW activation with server
+    await confirmSWWithServer();
+    
     // Set flag so pages know we came from loader
     sessionStorage.setItem('fromLoader', 'true');
+    sessionStorage.setItem('swActivated', 'true');
+    sessionStorage.setItem('swActivatedAt', Date.now().toString());
     
-    // Check if there's a saved redirect URL
-    const redirectUrl = sessionStorage.getItem('redirectAfterLoader');
-    if (redirectUrl) {
-      sessionStorage.removeItem('redirectAfterLoader');
-      console.log('[Loader] Redirecting to saved URL:', redirectUrl);
-      window.location.href = redirectUrl;
-    } else {
-      window.location.href = CONFIG.CONTENT_URL;
-    }
+    // Clear saved redirect URL
+    sessionStorage.removeItem('redirectAfterLoader');
+    
+    console.log('[Loader] Redirecting to:', returnUrl);
+    window.location.href = returnUrl;
   }
 
   /**
@@ -157,6 +250,32 @@
    */
   function isSWControlling() {
     return navigator.serviceWorker && navigator.serviceWorker.controller;
+  }
+
+  /**
+   * Check if SW is registered and active
+   */
+  async function isSWActiveAndReady() {
+    if (!('serviceWorker' in navigator)) {
+      return false;
+    }
+    
+    try {
+      const registration = await navigator.serviceWorker.getRegistration('/');
+      if (registration && registration.active) {
+        // SW is registered and active
+        // Check if it's controlling
+        if (navigator.serviceWorker.controller) {
+          return true;
+        }
+        // SW is active but not controlling - trigger claim
+        registration.active.postMessage({ type: 'CLAIM_CLIENTS' });
+        return false; // Will become true after claim
+      }
+    } catch (e) {
+      console.warn('[Loader] Error checking SW status:', e);
+    }
+    return false;
   }
 
   /**
@@ -175,9 +294,8 @@
 
     // Check SW support
     if (!('serviceWorker' in navigator)) {
-      console.warn('[Loader] Service Workers not supported');
-      updateStatus('timeout');
-      setTimeout(goToContent, 1000);
+      console.error('[Loader] Service Workers not supported');
+      showError(STATUS_MESSAGES.swNotSupported);
       return;
     }
 
@@ -186,10 +304,20 @@
       activateStep(1);
       updateProgress(20);
 
+      // Unregister any existing SW first to ensure fresh registration
+      const existingRegistrations = await navigator.serviceWorker.getRegistrations();
+      for (const reg of existingRegistrations) {
+        if (reg.scope.includes(window.location.origin)) {
+          console.log('[Loader] Unregistering existing SW:', reg.scope);
+          // Don't unregister, just update
+        }
+      }
+
       // Register Service Worker
       console.log('[Loader] Registering Service Worker...');
       const registration = await navigator.serviceWorker.register(CONFIG.SW_PATH, {
-        scope: '/'
+        scope: '/',
+        updateViaCache: 'none' // Always check for updates
       });
 
       console.log('[Loader] SW registered:', registration.scope);
@@ -197,33 +325,46 @@
       activateStep(2);
       updateStatus('activating');
 
-      // If SW is already active and just needs to claim
-      if (registration.active) {
-        console.log('[Loader] SW active, waiting for claim...');
-        registration.active.postMessage({ type: 'SKIP_WAITING' });
-      }
-
-      // If SW is waiting, activate it
-      if (registration.waiting) {
-        console.log('[Loader] SW waiting, activating...');
-        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-      }
-
-      // If SW is installing, wait for it
-      if (registration.installing) {
-        console.log('[Loader] SW installing, waiting...');
-        registration.installing.addEventListener('statechange', (e) => {
-          console.log('[Loader] SW state changed:', e.target.state);
-          if (e.target.state === 'activated') {
-            updateProgress(70);
-            updateStatus('loading');
-          }
-        });
+      // Handle different SW states
+      const sw = registration.installing || registration.waiting || registration.active;
+      
+      if (sw) {
+        // Send message to skip waiting and claim
+        sw.postMessage({ type: 'SKIP_WAITING' });
+        sw.postMessage({ type: 'CLAIM_CLIENTS' });
+        
+        // If installing, watch state changes
+        if (registration.installing) {
+          console.log('[Loader] SW installing...');
+          registration.installing.addEventListener('statechange', (e) => {
+            console.log('[Loader] SW state changed:', e.target.state);
+            if (e.target.state === 'activated') {
+              updateProgress(70);
+              updateStatus('loading');
+              // Trigger claim
+              e.target.postMessage({ type: 'CLAIM_CLIENTS' });
+            }
+          });
+        }
+        
+        // If waiting, activate it
+        if (registration.waiting) {
+          console.log('[Loader] SW waiting, activating...');
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+        
+        // If already active
+        if (registration.active) {
+          console.log('[Loader] SW already active, claiming...');
+          registration.active.postMessage({ type: 'CLAIM_CLIENTS' });
+          updateProgress(70);
+          updateStatus('loading');
+        }
       }
 
       // Listen for controller change (SW takes control)
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        console.log('[Loader] SW controller changed!');
+        console.log('[Loader] SW controller changed - NOW CONTROLLING!');
         if (!swReady) {
           swReady = true;
           updateProgress(100);
@@ -243,9 +384,24 @@
 
     } catch (error) {
       console.error('[Loader] SW registration failed:', error);
-      updateStatus('timeout');
-      // Proceed anyway after a short delay
-      setTimeout(goToContent, 1500);
+      
+      if (retryCount < CONFIG.MAX_RETRIES) {
+        // Auto-retry
+        retryCount++;
+        updateStatus('retrying', { count: retryCount, max: CONFIG.MAX_RETRIES });
+        console.log('[Loader] Retrying... attempt', retryCount);
+        
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Reset and try again
+        startTime = Date.now();
+        countdownValue = CONFIG.COUNTDOWN_START;
+        initServiceWorker();
+      } else {
+        // All retries exhausted
+        showError(`Service Worker activation failed after ${CONFIG.MAX_RETRIES} attempts. Please refresh the page.`);
+      }
     }
   }
 
@@ -253,7 +409,7 @@
    * Periodically check if SW is ready
    */
   function startSWCheck() {
-    const checkSW = setInterval(() => {
+    const checkSW = setInterval(async () => {
       if (swReady) {
         clearInterval(checkSW);
         return;
@@ -271,8 +427,21 @@
         if (progressInterval) clearInterval(progressInterval);
         
         setTimeout(goToContent, 600);
+        return;
+      }
+      
+      // Also check registration state
+      const ready = await isSWActiveAndReady();
+      if (ready && !swReady) {
+        // SW is active, wait a bit for claim
+        console.log('[Loader] SW active, waiting for claim...');
       }
     }, CONFIG.CHECK_INTERVAL);
+    
+    // Clear check after max wait time
+    setTimeout(() => {
+      clearInterval(checkSW);
+    }, CONFIG.MAX_WAIT_TIME + 5000);
   }
 
   /**
@@ -283,7 +452,7 @@
     
     countdownInterval = setInterval(() => {
       countdownValue--;
-      updateCountdown(countdownValue);
+      updateCountdown(Math.max(0, countdownValue));
       
       // Update progress based on time elapsed
       const elapsed = Date.now() - startTime;
@@ -307,21 +476,38 @@
         clearInterval(countdownInterval);
         
         if (!swReady) {
-          console.log('[Loader] Timeout reached, proceeding without SW');
-          updateStatus('timeout');
-          updateProgress(100);
+          console.log('[Loader] Timeout reached');
           
-          // Mark all steps as completed anyway
-          for (let i = 1; i <= 3; i++) {
-            const step = elements['step' + i];
-            if (step) {
-              step.classList.remove('active');
-              step.classList.add('completed');
-            }
+          // Try one more aggressive approach before giving up
+          if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+            console.log('[Loader] Wait, SW is actually controlling now!');
+            swReady = true;
+            showSuccess();
+            setTimeout(goToContent, 600);
+            return;
           }
           
-          // Proceed to content (without proxy, real IP)
-          setTimeout(goToContent, 800);
+          // Check if we should auto-retry
+          if (retryCount < CONFIG.MAX_RETRIES && !isRetrying) {
+            isRetrying = true;
+            retryCount++;
+            updateStatus('retrying', { count: retryCount, max: CONFIG.MAX_RETRIES });
+            console.log('[Loader] Auto-retrying... attempt', retryCount);
+            
+            // Reset state
+            countdownValue = CONFIG.COUNTDOWN_START;
+            startTime = Date.now();
+            isRetrying = false;
+            
+            // Restart countdown
+            startCountdown();
+            
+            // Re-init SW
+            initServiceWorker();
+          } else {
+            // All retries exhausted - show error, DO NOT proceed
+            showError('Service Worker could not be activated. Please try:\n1. Refresh the page\n2. Clear browser cache\n3. Try a different browser');
+          }
         }
       }
     }, 1000);
@@ -352,10 +538,58 @@
   }
 
   /**
+   * Handle retry button click
+   */
+  function handleRetry() {
+    console.log('[Loader] Manual retry triggered');
+    
+    // Reset state
+    retryCount = 0;
+    swReady = false;
+    countdownValue = CONFIG.COUNTDOWN_START;
+    startTime = Date.now();
+    
+    // Reset UI
+    if (elements.loaderCard) {
+      elements.loaderCard.classList.remove('error', 'success');
+    }
+    if (elements.countdownNumber) {
+      elements.countdownNumber.textContent = countdownValue.toString();
+      elements.countdownNumber.style.fontSize = '';
+      elements.countdownNumber.style.color = '';
+    }
+    if (elements.retryContainer) {
+      elements.retryContainer.style.display = 'none';
+    }
+    
+    // Reset steps
+    for (let i = 1; i <= 3; i++) {
+      const step = elements['step' + i];
+      if (step) {
+        step.classList.remove('active', 'completed');
+      }
+    }
+    activateStep(1);
+    
+    updateProgress(0);
+    updateStatus('connecting');
+    
+    // Restart
+    startCountdown();
+    initServiceWorker();
+  }
+
+  /**
    * Main initialization
    */
   function init() {
     console.log('[Loader] Initializing...');
+    console.log('[Loader] Return URL:', returnUrl);
+    
+    // Setup retry button handler
+    if (elements.retryButton) {
+      elements.retryButton.addEventListener('click', handleRetry);
+    }
     
     // Setup SVG gradient
     initSVGGradient();
@@ -372,14 +606,6 @@
     
     // Start SW initialization
     initServiceWorker();
-    
-    // Fallback timeout (absolute max wait)
-    setTimeout(() => {
-      if (!swReady) {
-        console.log('[Loader] Absolute timeout, forcing redirect');
-        goToContent();
-      }
-    }, CONFIG.MAX_WAIT_TIME + 1000); // Extra 1 second buffer
   }
 
   // Start when DOM is ready
@@ -390,4 +616,3 @@
   }
 
 })();
-
