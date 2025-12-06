@@ -134,13 +134,22 @@
   }
 
   /**
-   * Redirect to content page
+   * Redirect to content page (or original destination)
    */
   function goToContent() {
     console.log('[Loader] Redirecting to content...');
-    // Set flag so homepage knows we came from loader
+    // Set flag so pages know we came from loader
     sessionStorage.setItem('fromLoader', 'true');
-    window.location.href = CONFIG.CONTENT_URL;
+    
+    // Check if there's a saved redirect URL
+    const redirectUrl = sessionStorage.getItem('redirectAfterLoader');
+    if (redirectUrl) {
+      sessionStorage.removeItem('redirectAfterLoader');
+      console.log('[Loader] Redirecting to saved URL:', redirectUrl);
+      window.location.href = redirectUrl;
+    } else {
+      window.location.href = CONFIG.CONTENT_URL;
+    }
   }
 
   /**

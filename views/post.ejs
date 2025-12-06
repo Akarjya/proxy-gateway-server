@@ -15,6 +15,8 @@
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1412261360398184" crossorigin="anonymous"></script>
 </head>
 <body class="hindi">
+  <!-- Service Worker Check -->
+  <script src="/js/sw-check.js"></script>
   
   <!-- Header -->
   <header class="site-header">
@@ -35,10 +37,11 @@
       <div class="ad-label">Advertisement</div>
       <div class="ad-slot">
         <ins class="adsbygoogle"
-             style="display:inline-block;width:300px;height:250px"
+             style="display:block"
              data-ad-client="ca-pub-1412261360398184"
-             data-ad-slot="POST-TOP"
-             data-tag-src="gamtg"></ins>
+             data-ad-slot="auto"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
         <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
       </div>
     </div>
@@ -62,24 +65,8 @@
 
       <!-- Featured Image -->
       <% if (post.image) { %>
-      <div class="post-featured-image" style="background-image: url('<%= post.image %>'); background-size: cover; background-position: center;">
-        <div class="featured-content" style="background: rgba(0,0,0,0.5); padding: 2rem; border-radius: 8px;">
-          <span class="featured-emoji"><%= post.emoji %></span>
-          <span class="featured-text">
-            <span class="featured-text-hi lang-hi"><%= post.imageText.hi %></span>
-            <span class="lang-en"><%= post.imageText.en %></span>
-          </span>
-        </div>
-      </div>
-      <% } else { %>
-      <div class="post-featured-image">
-        <div class="featured-content">
-          <span class="featured-emoji"><%= post.emoji %></span>
-          <span class="featured-text">
-            <span class="featured-text-hi lang-hi"><%= post.imageText.hi %></span>
-            <span class="lang-en"><%= post.imageText.en %></span>
-          </span>
-        </div>
+      <div class="post-featured-image-clean">
+        <img src="<%= post.image %>" alt="<%= post.title.en %>" class="featured-img">
       </div>
       <% } %>
 
@@ -88,10 +75,11 @@
         <div class="ad-label">Advertisement</div>
         <div class="ad-slot">
           <ins class="adsbygoogle"
-               style="display:inline-block;width:300px;height:250px"
+               style="display:block"
                data-ad-client="ca-pub-1412261360398184"
-               data-ad-slot="POST-AFTER-H1"
-               data-tag-src="gamtg"></ins>
+               data-ad-slot="auto"
+               data-ad-format="auto"
+               data-full-width-responsive="true"></ins>
           <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
         </div>
       </div>
