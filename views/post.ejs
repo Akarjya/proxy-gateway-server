@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="<%= post.metaDesc %>">
+  <title><%= post.title.en %> | atolf.xyz</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/blog.css">
+  
+  <!-- Google AdSense -->
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1412261360398184" crossorigin="anonymous"></script>
+</head>
+<body class="hindi">
+  
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container">
+      <div class="header-content">
+        <a href="/" class="site-logo">💕 atolf</a>
+        <div class="lang-toggle">
+          <button class="lang-btn" data-lang="hi" onclick="setLanguage('hi')">हिंदी</button>
+          <button class="lang-btn active" data-lang="en" onclick="setLanguage('en')">English</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <article class="post-container">
+      
+      <!-- Post Header -->
+      <header class="post-header">
+        <span class="post-category">Guide • 2025</span>
+        <h1 class="post-title">
+          <span class="lang-hi"><%= post.title.hi %></span>
+          <span class="lang-en"><%= post.title.en %></span>
+        </h1>
+        <p class="post-meta">
+          <span class="lang-hi">📅 December 2025 • 5 min read</span>
+          <span class="lang-en">📅 December 2025 • 5 min read</span>
+        </p>
+      </header>
+
+      <!-- Featured Image -->
+      <img src="/images/featured.jpg" alt="<%= post.title.en %>" class="post-image">
+
+      <!-- Ad Slot 1 - BAN1 -->
+      <div class="ad-container">
+        <div class="ad-label">Advertisement</div>
+        <div class="ad-slot">
+          <ins class="adsbygoogle"
+               style="display:inline-block;width:300px;height:250px"
+               data-ad-client="ca-pub-1412261360398184"
+               data-ad-slot="BAN1"
+               data-tag-src="gamtg"></ins>
+          <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+        </div>
+      </div>
+
+      <!-- Post Content -->
+      <div class="post-content">
+        <%- post.content %>
+      </div>
+
+      <!-- Ad Slot 2 - BAN2 -->
+      <div class="ad-container">
+        <div class="ad-label">Advertisement</div>
+        <div class="ad-slot">
+          <ins class="adsbygoogle"
+               style="display:inline-block;width:300px;height:250px"
+               data-ad-client="ca-pub-1412261360398184"
+               data-ad-slot="BAN2"
+               data-tag-src="gamtg"></ins>
+          <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+        </div>
+      </div>
+
+      <!-- Related Posts -->
+      <section class="related-section">
+        <h3 class="related-title">
+          <span class="lang-hi">📖 यह भी पढ़ें</span>
+          <span class="lang-en">📖 Also Read</span>
+        </h3>
+        <div class="related-posts">
+          <% post.relatedPosts.forEach(function(related) { %>
+          <a href="/post/<%= related.slug %>" class="related-post-link">
+            <span class="emoji"><%= related.emoji %></span>
+            <span class="title">
+              <span class="lang-hi"><%= related.title.hi %></span>
+              <span class="lang-en"><%= related.title.en %></span>
+            </span>
+          </a>
+          <% }); %>
+        </div>
+      </section>
+
+      <!-- Next Post CTA -->
+      <% if (post.nextPost) { %>
+      <section class="next-post-cta">
+        <h3>
+          <span class="lang-hi">👉 अगला आर्टिकल पढ़ें</span>
+          <span class="lang-en">👉 Read Next Article</span>
+        </h3>
+        <p>
+          <span class="lang-hi"><%= post.nextPost.teaser.hi %></span>
+          <span class="lang-en"><%= post.nextPost.teaser.en %></span>
+        </p>
+        <a href="/post/<%= post.nextPost.slug %>" class="next-post-btn">
+          <span class="lang-hi"><%= post.nextPost.title.hi %> →</span>
+          <span class="lang-en"><%= post.nextPost.title.en %> →</span>
+        </a>
+      </section>
+      <% } %>
+
+    </article>
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-content">
+        <nav class="footer-links">
+          <a href="/">Home</a>
+          <a href="/about">About</a>
+          <a href="/contact">Contact</a>
+          <a href="/privacy">Privacy Policy</a>
+        </nav>
+        <p class="footer-copyright">
+          © 2025 <span class="footer-domain">atolf.xyz</span> • Made with 💕 in India
+        </p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Language Toggle Script -->
+  <script>
+    const savedLang = localStorage.getItem('preferredLang') || 'hi';
+    setLanguage(savedLang);
+    
+    function setLanguage(lang) {
+      document.body.classList.remove('hindi', 'english');
+      document.body.classList.add(lang === 'hi' ? 'hindi' : 'english');
+      
+      document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.lang === lang) {
+          btn.classList.add('active');
+        }
+      });
+      
+      localStorage.setItem('preferredLang', lang);
+    }
+  </script>
+</body>
+</html>

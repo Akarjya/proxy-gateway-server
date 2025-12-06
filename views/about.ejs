@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="About atolf.xyz - Dating and relationship tips for Indian men">
+  <title>About Us | atolf.xyz</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/blog.css">
+</head>
+<body class="hindi">
+  
+  <header class="site-header">
+    <div class="container">
+      <div class="header-content">
+        <a href="/" class="site-logo">💕 atolf</a>
+        <div class="lang-toggle">
+          <button class="lang-btn" data-lang="hi" onclick="setLanguage('hi')">हिंदी</button>
+          <button class="lang-btn active" data-lang="en" onclick="setLanguage('en')">English</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <article class="policy-page">
+      <h1>
+        <span class="lang-hi">🙏 हमारे बारे में</span>
+        <span class="lang-en">🙏 About Us</span>
+      </h1>
+      
+      <p class="lang-hi">
+        <strong>atolf.xyz</strong> में आपका स्वागत है! हम भारतीय पुरुषों के लिए डेटिंग, रिलेशनशिप और लव लाइफ से जुड़ी जानकारी और टिप्स प्रदान करते हैं।
+      </p>
+      <p class="lang-en">
+        Welcome to <strong>atolf.xyz</strong>! We provide information and tips related to dating, relationships, and love life for Indian men.
+      </p>
+
+      <h2>
+        <span class="lang-hi">🎯 हमारा मिशन</span>
+        <span class="lang-en">🎯 Our Mission</span>
+      </h2>
+      
+      <p class="lang-hi">
+        हमारा मिशन है भारतीय पुरुषों को confidence के साथ डेटिंग और रिलेशनशिप में मदद करना। हम practical, real-world advice देते हैं जो actually काम करती है।
+      </p>
+      <p class="lang-en">
+        Our mission is to help Indian men with dating and relationships with confidence. We provide practical, real-world advice that actually works.
+      </p>
+
+      <h2>
+        <span class="lang-hi">📚 हम क्या provide करते हैं?</span>
+        <span class="lang-en">📚 What We Provide?</span>
+      </h2>
+      
+      <ul>
+        <li class="lang-hi">✅ डेटिंग ऐप्स की reviews और guides</li>
+        <li class="lang-en">✅ Dating apps reviews and guides</li>
+        <li class="lang-hi">✅ First date और conversation tips</li>
+        <li class="lang-en">✅ First date and conversation tips</li>
+        <li class="lang-hi">✅ Profile optimization guides</li>
+        <li class="lang-en">✅ Profile optimization guides</li>
+        <li class="lang-hi">✅ Relationship advice</li>
+        <li class="lang-en">✅ Relationship advice</li>
+        <li class="lang-hi">✅ Online dating safety tips</li>
+        <li class="lang-en">✅ Online dating safety tips</li>
+      </ul>
+
+      <h2>
+        <span class="lang-hi">⚠️ Disclaimer</span>
+        <span class="lang-en">⚠️ Disclaimer</span>
+      </h2>
+      
+      <p class="lang-hi">
+        यह website सिर्फ educational और informational purposes के लिए है। हम कोई dating service या matchmaking provide नहीं करते। सभी tips और advice general nature के हैं और individual results vary हो सकते हैं।
+      </p>
+      <p class="lang-en">
+        This website is for educational and informational purposes only. We do not provide any dating service or matchmaking. All tips and advice are general in nature and individual results may vary.
+      </p>
+
+      <p class="lang-hi">
+        हम किसी भी third-party dating app या service से affiliated नहीं हैं। App के names और logos उनके respective owners की property हैं।
+      </p>
+      <p class="lang-en">
+        We are not affiliated with any third-party dating app or service. App names and logos are property of their respective owners.
+      </p>
+
+      <h2>
+        <span class="lang-hi">📧 संपर्क करें</span>
+        <span class="lang-en">📧 Contact Us</span>
+      </h2>
+      
+      <p class="lang-hi">
+        कोई सवाल या सुझाव? हमसे <a href="/contact">Contact Page</a> पर संपर्क करें।
+      </p>
+      <p class="lang-en">
+        Any questions or suggestions? Contact us on our <a href="/contact">Contact Page</a>.
+      </p>
+
+      <p class="lang-hi" style="margin-top: 2rem; color: var(--text-muted);">
+        © 2025 atolf.xyz | Made with 💕 in India
+      </p>
+      <p class="lang-en" style="margin-top: 2rem; color: var(--text-muted);">
+        © 2025 atolf.xyz | Made with 💕 in India
+      </p>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-content">
+        <nav class="footer-links">
+          <a href="/">Home</a>
+          <a href="/about">About</a>
+          <a href="/contact">Contact</a>
+          <a href="/privacy">Privacy Policy</a>
+        </nav>
+        <p class="footer-copyright">
+          © 2025 <span class="footer-domain">atolf.xyz</span>
+        </p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const savedLang = localStorage.getItem('preferredLang') || 'hi';
+    setLanguage(savedLang);
+    
+    function setLanguage(lang) {
+      document.body.classList.remove('hindi', 'english');
+      document.body.classList.add(lang === 'hi' ? 'hindi' : 'english');
+      document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.lang === lang) btn.classList.add('active');
+      });
+      localStorage.setItem('preferredLang', lang);
+    }
+  </script>
+</body>
+</html>

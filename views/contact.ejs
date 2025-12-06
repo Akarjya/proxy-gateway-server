@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Contact atolf.xyz - Get in touch with us">
+  <title>Contact Us | atolf.xyz</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/blog.css">
+</head>
+<body class="hindi">
+  
+  <header class="site-header">
+    <div class="container">
+      <div class="header-content">
+        <a href="/" class="site-logo">💕 atolf</a>
+        <div class="lang-toggle">
+          <button class="lang-btn" data-lang="hi" onclick="setLanguage('hi')">हिंदी</button>
+          <button class="lang-btn active" data-lang="en" onclick="setLanguage('en')">English</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <article class="policy-page">
+      <h1>
+        <span class="lang-hi">📧 संपर्क करें</span>
+        <span class="lang-en">📧 Contact Us</span>
+      </h1>
+      
+      <p class="lang-hi">
+        कोई सवाल, सुझाव या feedback है? हमें message भेजें और हम जल्द से जल्द reply करेंगे।
+      </p>
+      <p class="lang-en">
+        Have a question, suggestion, or feedback? Send us a message and we'll reply as soon as possible.
+      </p>
+
+      <h2>
+        <span class="lang-hi">📬 हमसे संपर्क करें</span>
+        <span class="lang-en">📬 Get In Touch</span>
+      </h2>
+
+      <form class="contact-form" action="#" method="POST" onsubmit="handleSubmit(event)">
+        <div class="form-group">
+          <label>
+            <span class="lang-hi">आपका नाम</span>
+            <span class="lang-en">Your Name</span>
+          </label>
+          <input type="text" name="name" required placeholder="Enter your name">
+        </div>
+
+        <div class="form-group">
+          <label>
+            <span class="lang-hi">ईमेल</span>
+            <span class="lang-en">Email</span>
+          </label>
+          <input type="email" name="email" required placeholder="Enter your email">
+        </div>
+
+        <div class="form-group">
+          <label>
+            <span class="lang-hi">विषय</span>
+            <span class="lang-en">Subject</span>
+          </label>
+          <input type="text" name="subject" required placeholder="What is this about?">
+        </div>
+
+        <div class="form-group">
+          <label>
+            <span class="lang-hi">आपका संदेश</span>
+            <span class="lang-en">Your Message</span>
+          </label>
+          <textarea name="message" required placeholder="Type your message here..."></textarea>
+        </div>
+
+        <button type="submit" class="submit-btn">
+          <span class="lang-hi">भेजें →</span>
+          <span class="lang-en">Send →</span>
+        </button>
+      </form>
+
+      <div id="success-message" style="display: none; margin-top: 1rem; padding: 1rem; background: #e8f5e9; border-radius: 8px; color: #2e7d32;">
+        <p class="lang-hi">✅ आपका message भेज दिया गया है! हम जल्द ही reply करेंगे।</p>
+        <p class="lang-en">✅ Your message has been sent! We'll reply soon.</p>
+      </div>
+
+      <h2>
+        <span class="lang-hi">📍 अन्य तरीके</span>
+        <span class="lang-en">📍 Other Ways</span>
+      </h2>
+      
+      <ul>
+        <li class="lang-hi">📧 Email: contact@atolf.xyz</li>
+        <li class="lang-en">📧 Email: contact@atolf.xyz</li>
+      </ul>
+
+      <p class="lang-hi" style="margin-top: 1rem; color: var(--text-muted);">
+        हम आमतौर पर 24-48 घंटों में reply करते हैं।
+      </p>
+      <p class="lang-en" style="margin-top: 1rem; color: var(--text-muted);">
+        We usually reply within 24-48 hours.
+      </p>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-content">
+        <nav class="footer-links">
+          <a href="/">Home</a>
+          <a href="/about">About</a>
+          <a href="/contact">Contact</a>
+          <a href="/privacy">Privacy Policy</a>
+        </nav>
+        <p class="footer-copyright">
+          © 2025 <span class="footer-domain">atolf.xyz</span>
+        </p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const savedLang = localStorage.getItem('preferredLang') || 'hi';
+    setLanguage(savedLang);
+    
+    function setLanguage(lang) {
+      document.body.classList.remove('hindi', 'english');
+      document.body.classList.add(lang === 'hi' ? 'hindi' : 'english');
+      document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.lang === lang) btn.classList.add('active');
+      });
+      localStorage.setItem('preferredLang', lang);
+    }
+
+    function handleSubmit(e) {
+      e.preventDefault();
+      document.getElementById('success-message').style.display = 'block';
+      e.target.reset();
+      setTimeout(() => {
+        document.getElementById('success-message').style.display = 'none';
+      }, 5000);
+    }
+  </script>
+</body>
+</html>

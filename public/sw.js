@@ -1,28 +1,39 @@
 /**
  * Service Worker - Proxy Relay
- * Intercepts ALL network requests and routes them through SOCKS5 proxy
+ * Intercepts ALL external network requests and routes them through SOCKS5 proxy
  * 
- * This ensures that ALL traffic (including ads, analytics, external scripts)
+ * This ensures that ALL external traffic (including ads, analytics, external scripts)
  * goes through the proxy server and destination sees PROXY IP
+ * 
+ * Same-domain requests are NOT intercepted (they're served directly by Express)
  */
 
-const SW_VERSION = '1.0.0';
+const SW_VERSION = '2.0.0';
 const RELAY_ENDPOINT = '/relay';
 
-// Domains that should NOT be relayed (our own proxy server)
+// Paths that should NOT be relayed (our own server paths)
 const BYPASS_PATTERNS = [
-  // Our own server paths
+  // Server routes
   /^\/relay/,
   /^\/browse/,
   /^\/external/,
   /^\/navigate/,
+  /^\/content/,
+  /^\/proceed/,
+  /^\/reset/,
+  
+  // Static assets
   /^\/sw\.js/,
   /^\/css\//,
   /^\/js\//,
+  /^\/favicon/,
+  
+  // Test endpoints
   /^\/test-ip/,
   /^\/test-http/,
-  /^\/proceed/,
-  /^\/reset/,
+  
+  // Root (loader page)
+  /^\/$/,
 ];
 
 // Log with prefix for easy filtering
@@ -40,7 +51,7 @@ function logError(...args) {
 self.addEventListener('install', (event) => {
   log('Installing Service Worker v' + SW_VERSION);
   
-  // Skip waiting to activate immediately
+  // Skip waiting to activate immediately - CRITICAL for loader to work
   event.waitUntil(self.skipWaiting());
 });
 
@@ -51,6 +62,7 @@ self.addEventListener('activate', (event) => {
   log('Service Worker activated v' + SW_VERSION);
   
   // Take control of all pages immediately (don't wait for refresh)
+  // This is CRITICAL - allows loader to detect SW is ready
   event.waitUntil(self.clients.claim());
 });
 
@@ -58,7 +70,6 @@ self.addEventListener('activate', (event) => {
  * Check if a URL should bypass the relay
  */
 function shouldBypass(url) {
-  // Parse the URL
   let urlObj;
   try {
     urlObj = new URL(url, self.location.origin);
@@ -66,13 +77,16 @@ function shouldBypass(url) {
     return true; // Invalid URL, bypass
   }
   
-  // Same origin requests to our bypass paths
+  // Same origin requests check against bypass patterns
   if (urlObj.origin === self.location.origin) {
     for (const pattern of BYPASS_PATTERNS) {
       if (pattern.test(urlObj.pathname)) {
         return true;
       }
     }
+    // Same origin but not in bypass list - still bypass
+    // (these are our content pages, served directly)
+    return true;
   }
   
   // Data URLs, blob URLs - bypass
@@ -81,7 +95,7 @@ function shouldBypass(url) {
   }
   
   // Chrome extension URLs - bypass
-  if (url.startsWith('chrome-extension:')) {
+  if (url.startsWith('chrome-extension:') || url.startsWith('moz-extension:')) {
     return true;
   }
   
@@ -101,99 +115,10 @@ function isExternalUrl(url) {
 }
 
 /**
- * Make absolute URL from potentially relative URL
- */
-function makeAbsoluteUrl(url, baseUrl) {
-  try {
-    // If already absolute, return as is
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      return url;
-    }
-    
-    // Protocol-relative URL
-    if (url.startsWith('//')) {
-      return 'https:' + url;
-    }
-    
-    // Relative URL - make absolute using base
-    return new URL(url, baseUrl).href;
-  } catch (e) {
-    return url;
-  }
-}
-
-/**
- * Get the original target URL from storage or default
- * This is used to replace proxy URLs in ad requests
- */
-function getOriginalTargetUrl() {
-  // This will be set by the page when it loads
-  return self.ORIGINAL_TARGET_URL || 'https://dating.atolf.xyz/';
-}
-
-/**
- * Modify URL for ad requests to use original domain
- * This helps Google ads verify the correct domain
- */
-function modifyAdRequestUrl(url) {
-  try {
-    const urlObj = new URL(url);
-    
-    // Check if this is a Google ad request
-    const isAdRequest = urlObj.hostname.includes('googlesyndication') ||
-                        urlObj.hostname.includes('doubleclick') ||
-                        urlObj.hostname.includes('googleads') ||
-                        urlObj.hostname.includes('adtrafficquality');
-    
-    if (isAdRequest) {
-      // Replace proxy URL with original URL in query parameters
-      const proxyOrigin = self.location.origin;
-      const originalUrl = getOriginalTargetUrl();
-      const originalOrigin = new URL(originalUrl).origin;
-      
-      // Modify the URL parameter that Google uses for domain verification
-      let modifiedSearch = urlObj.search;
-      
-      // Replace encoded proxy URLs
-      modifiedSearch = modifiedSearch.replace(
-        new RegExp(encodeURIComponent(proxyOrigin + '/browse'), 'g'),
-        encodeURIComponent(originalUrl)
-      );
-      modifiedSearch = modifiedSearch.replace(
-        new RegExp(encodeURIComponent(proxyOrigin), 'g'),
-        encodeURIComponent(originalOrigin)
-      );
-      
-      // Replace non-encoded proxy URLs
-      modifiedSearch = modifiedSearch.replace(
-        new RegExp(proxyOrigin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/browse', 'g'),
-        originalUrl
-      );
-      modifiedSearch = modifiedSearch.replace(
-        new RegExp(proxyOrigin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
-        originalOrigin
-      );
-      
-      urlObj.search = modifiedSearch;
-      
-      log('Modified ad URL:', url.substring(0, 60), '->', urlObj.href.substring(0, 60));
-      return urlObj.href;
-    }
-  } catch (e) {
-    logError('Failed to modify ad URL:', e.message);
-  }
-  
-  return url;
-}
-
-/**
  * Relay a request through our proxy server
  */
 async function relayRequest(request) {
   let originalUrl = request.url;
-  
-  // Modify ad request URLs to use original domain
-  originalUrl = modifyAdRequestUrl(originalUrl);
   
   // Build relay URL
   const relayUrl = new URL(RELAY_ENDPOINT, self.location.origin);
@@ -206,16 +131,7 @@ async function relayRequest(request) {
   for (const name of headerNames) {
     const value = request.headers.get(name);
     if (value) {
-      // Modify referer to use original URL for ad requests
-      if (name === 'referer') {
-        const proxyOrigin = self.location.origin;
-        const originalTargetUrl = getOriginalTargetUrl();
-        const originalOrigin = new URL(originalTargetUrl).origin;
-        headersToForward[name] = value.replace(proxyOrigin + '/browse', originalTargetUrl)
-                                       .replace(proxyOrigin, originalOrigin);
-      } else {
-        headersToForward[name] = value;
-      }
+      headersToForward[name] = value;
     }
   }
   
@@ -322,7 +238,7 @@ self.addEventListener('fetch', (event) => {
     // Intercept and relay through our proxy
     event.respondWith(
       relayRequest(request).catch((error) => {
-        logError('Relay failed for:', url, error.message);
+        logError('Relay failed for:', url.substring(0, 60), error.message);
         
         // Fallback: try direct fetch (will use user's real IP)
         // This ensures the page doesn't break completely
@@ -337,7 +253,7 @@ self.addEventListener('fetch', (event) => {
     );
   }
   // For same-origin requests that aren't bypassed,
-  // let them go through normally (they'll hit our proxy routes)
+  // let them go through normally (they'll hit our Express routes)
 });
 
 /**
@@ -349,13 +265,20 @@ self.addEventListener('message', (event) => {
   }
   
   if (event.data && event.data.type === 'SKIP_WAITING') {
+    log('Received SKIP_WAITING message');
     self.skipWaiting();
   }
   
-  // Receive original target URL from page for ad URL modification
-  if (event.data && event.data.type === 'SET_ORIGINAL_URL') {
-    self.ORIGINAL_TARGET_URL = event.data.url;
-    log('Original target URL set:', self.ORIGINAL_TARGET_URL);
+  if (event.data && event.data.type === 'GET_STATUS') {
+    // Respond with SW status
+    if (event.source) {
+      event.source.postMessage({
+        type: 'SW_STATUS',
+        version: SW_VERSION,
+        controlling: true
+      });
+    }
   }
 });
 
+log('Service Worker script loaded v' + SW_VERSION);
