@@ -138,6 +138,8 @@
    */
   function goToContent() {
     console.log('[Loader] Redirecting to content...');
+    // Set flag so homepage knows we came from loader
+    sessionStorage.setItem('fromLoader', 'true');
     window.location.href = CONFIG.CONTENT_URL;
   }
 

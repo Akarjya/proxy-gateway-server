@@ -29,6 +29,21 @@
     </div>
   </header>
 
+  <!-- Ad Slot 1 - Right after header/logo (TOP) -->
+  <div class="container">
+    <div class="ad-container" style="margin-top: 1rem;">
+      <div class="ad-label">Advertisement</div>
+      <div class="ad-slot">
+        <ins class="adsbygoogle"
+             style="display:inline-block;width:300px;height:250px"
+             data-ad-client="ca-pub-1412261360398184"
+             data-ad-slot="POST-TOP"
+             data-tag-src="gamtg"></ins>
+        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+      </div>
+    </div>
+  </div>
+
   <main class="container">
     <article class="post-container">
       
@@ -46,6 +61,17 @@
       </header>
 
       <!-- Featured Image -->
+      <% if (post.image) { %>
+      <div class="post-featured-image" style="background-image: url('<%= post.image %>'); background-size: cover; background-position: center;">
+        <div class="featured-content" style="background: rgba(0,0,0,0.5); padding: 2rem; border-radius: 8px;">
+          <span class="featured-emoji"><%= post.emoji %></span>
+          <span class="featured-text">
+            <span class="featured-text-hi lang-hi"><%= post.imageText.hi %></span>
+            <span class="lang-en"><%= post.imageText.en %></span>
+          </span>
+        </div>
+      </div>
+      <% } else { %>
       <div class="post-featured-image">
         <div class="featured-content">
           <span class="featured-emoji"><%= post.emoji %></span>
@@ -55,15 +81,16 @@
           </span>
         </div>
       </div>
+      <% } %>
 
-      <!-- Ad Slot 1 - BAN1 -->
+      <!-- Ad Slot 2 - Right after H1/Title (after featured image) -->
       <div class="ad-container">
         <div class="ad-label">Advertisement</div>
         <div class="ad-slot">
           <ins class="adsbygoogle"
                style="display:inline-block;width:300px;height:250px"
                data-ad-client="ca-pub-1412261360398184"
-               data-ad-slot="BAN1"
+               data-ad-slot="POST-AFTER-H1"
                data-tag-src="gamtg"></ins>
           <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
         </div>
@@ -72,19 +99,6 @@
       <!-- Post Content -->
       <div class="post-content">
         <%- post.content %>
-      </div>
-
-      <!-- Ad Slot 2 - BAN2 -->
-      <div class="ad-container">
-        <div class="ad-label">Advertisement</div>
-        <div class="ad-slot">
-          <ins class="adsbygoogle"
-               style="display:inline-block;width:300px;height:250px"
-               data-ad-client="ca-pub-1412261360398184"
-               data-ad-slot="BAN2"
-               data-tag-src="gamtg"></ins>
-          <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-        </div>
       </div>
 
       <!-- Related Posts -->

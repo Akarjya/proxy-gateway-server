@@ -1,6 +1,23 @@
 /**
  * Posts Data - All 5 blog posts content
  * Hindi (pure Devanagari) + English versions
+ * 
+ * IMAGE FIELD GUIDE:
+ * ==================
+ * To add a custom featured image to any post:
+ * 1. Add an 'image' field with the full URL to the image
+ * 2. Recommended image size: 1200x630px (for social sharing)
+ * 3. You can use any image hosting service like:
+ *    - Imgur: https://imgur.com/upload
+ *    - ImgBB: https://imgbb.com/
+ *    - Cloudinary: https://cloudinary.com/
+ *    - Put image in public/images folder: /images/your-image.jpg
+ * 4. If no image is provided, gradient background will be shown
+ * 
+ * Example:
+ *   image: 'https://i.imgur.com/abc123.jpg',
+ *   OR
+ *   image: '/images/dating-apps.jpg',
  */
 
 const posts = {
@@ -11,6 +28,7 @@ const posts = {
   'best-dating-apps': {
     slug: 'best-dating-apps',
     emoji: '💘',
+    image: '/images/featured.jpg',
     title: {
       hi: '🔥 भारत में बेस्ट डेटिंग ऐप्स 2025 — Tinder, Bumble और अन्य',
       en: '🔥 Best Dating Apps in India 2025 — Tinder, Bumble & More'
@@ -156,6 +174,7 @@ const posts = {
   'first-date-tips': {
     slug: 'first-date-tips',
     emoji: '🌹',
+    image: '/images/featured.jpg',
     title: {
       hi: '🌹 फर्स्ट डेट टिप्स — उसे इम्प्रेस कैसे करें?',
       en: '🌹 First Date Tips — How to Impress Her?'
@@ -287,6 +306,7 @@ const posts = {
   'dating-profile-tips': {
     slug: 'dating-profile-tips',
     emoji: '📸',
+    image: '/images/featured.jpg',
     title: {
       hi: '📸 परफेक्ट डेटिंग प्रोफाइल कैसे बनाएं? बायो और फोटो टिप्स',
       en: '📸 How to Create the Perfect Dating Profile? Bio & Photo Tips'
@@ -410,6 +430,7 @@ const posts = {
   'conversation-starters': {
     slug: 'conversation-starters',
     emoji: '💬',
+    image: '/images/featured.jpg',
     title: {
       hi: '💬 लड़की से बात कैसे शुरू करें? बेस्ट ओपनिंग लाइन्स',
       en: '💬 How to Start a Conversation? Best Opening Lines'
@@ -537,6 +558,7 @@ const posts = {
   'relationship-tips': {
     slug: 'relationship-tips',
     emoji: '💑',
+    image: '/images/featured.jpg',
     title: {
       hi: '💑 रिलेशनशिप टिप्स — उसे खुश कैसे रखें?',
       en: '💑 Relationship Tips — How to Keep Her Happy?'
