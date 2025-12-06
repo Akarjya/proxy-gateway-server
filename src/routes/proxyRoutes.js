@@ -815,7 +815,7 @@ router.post('/external/:encodedUrl', async (req, res) => {
 
 /**
  * GET /external/*
- * Proxy external resources (CDNs, third-party assets)
+ * Proxy external resources (CDNs, third-party assets, ad iframes)
  */
 router.get('/external/:encodedUrl', async (req, res) => {
   try {
@@ -836,8 +836,11 @@ router.get('/external/:encodedUrl', async (req, res) => {
 
     // Get URL path for MIME type detection
     let urlPath = targetUrl;
+    let targetOrigin = '';
     try {
-      urlPath = new URL(targetUrl).pathname;
+      const urlObj = new URL(targetUrl);
+      urlPath = urlObj.pathname;
+      targetOrigin = urlObj.origin;
     } catch (e) {
       // Use full URL if parsing fails
     }
@@ -867,6 +870,16 @@ router.get('/external/:encodedUrl', async (req, res) => {
     } else if (correctMimeType.includes('font/')) {
       // Font files - ensure correct headers
       res.type(correctMimeType).send(response.data);
+    } else if (correctMimeType.includes('text/html')) {
+      // HTML content (like ad iframes) - rewrite URLs to stay proxied
+      let htmlContent = Buffer.isBuffer(response.data) 
+        ? response.data.toString('utf-8') 
+        : response.data;
+      
+      // Rewrite URLs in external HTML to keep requests proxied
+      htmlContent = rewriteExternalHtml(htmlContent, targetUrl, targetOrigin);
+      
+      res.type('text/html; charset=utf-8').send(htmlContent);
     } else {
       res.type(correctMimeType).send(response.data);
     }
@@ -893,6 +906,155 @@ router.get('/external/:encodedUrl', async (req, res) => {
     res.type(mimeType).status(404).send('');
   }
 });
+
+/**
+ * Helper: Rewrite HTML from external sources (like ad iframes)
+ * to keep all requests going through our proxy
+ */
+function rewriteExternalHtml(html, baseUrl, baseOrigin) {
+  const cheerio = require('cheerio');
+  const $ = cheerio.load(html, { decodeEntities: false });
+  
+  // Rewrite script src
+  $('script[src]').each((_, el) => {
+    const src = $(el).attr('src');
+    if (src) {
+      const absoluteUrl = makeAbsoluteUrl(src, baseUrl, baseOrigin);
+      if (absoluteUrl) {
+        $(el).attr('src', '/external/' + encodeURIComponent(absoluteUrl));
+      }
+    }
+  });
+  
+  // Rewrite link href (stylesheets)
+  $('link[href]').each((_, el) => {
+    const href = $(el).attr('href');
+    if (href && !href.startsWith('data:')) {
+      const absoluteUrl = makeAbsoluteUrl(href, baseUrl, baseOrigin);
+      if (absoluteUrl) {
+        $(el).attr('href', '/external/' + encodeURIComponent(absoluteUrl));
+      }
+    }
+  });
+  
+  // Rewrite img src
+  $('img[src]').each((_, el) => {
+    const src = $(el).attr('src');
+    if (src && !src.startsWith('data:')) {
+      const absoluteUrl = makeAbsoluteUrl(src, baseUrl, baseOrigin);
+      if (absoluteUrl) {
+        $(el).attr('src', '/external/' + encodeURIComponent(absoluteUrl));
+      }
+    }
+  });
+  
+  // Rewrite iframe src
+  $('iframe[src]').each((_, el) => {
+    const src = $(el).attr('src');
+    if (src && !src.startsWith('data:') && !src.startsWith('about:')) {
+      const absoluteUrl = makeAbsoluteUrl(src, baseUrl, baseOrigin);
+      if (absoluteUrl) {
+        $(el).attr('src', '/external/' + encodeURIComponent(absoluteUrl));
+      }
+    }
+  });
+  
+  // Inject request interceptor script for dynamic requests
+  const interceptScript = `
+<script>
+(function() {
+  var BASE_ORIGIN = '${baseOrigin}';
+  
+  function makeProxiedUrl(url) {
+    if (!url) return url;
+    if (url.startsWith('/external/') || url.startsWith('/relay')) return url;
+    if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('javascript:')) return url;
+    
+    var absoluteUrl = url;
+    if (url.startsWith('//')) {
+      absoluteUrl = 'https:' + url;
+    } else if (url.startsWith('/')) {
+      absoluteUrl = BASE_ORIGIN + url;
+    } else if (!url.startsWith('http')) {
+      absoluteUrl = BASE_ORIGIN + '/' + url;
+    }
+    
+    // Only proxy if it's external to the current page
+    if (absoluteUrl.startsWith('http') && !absoluteUrl.includes(location.hostname)) {
+      return '/external/' + encodeURIComponent(absoluteUrl);
+    }
+    return url;
+  }
+  
+  // Intercept XHR
+  var origXHR = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function(method, url) {
+    url = makeProxiedUrl(url);
+    return origXHR.apply(this, [method, url, arguments[2], arguments[3], arguments[4]]);
+  };
+  
+  // Intercept fetch
+  var origFetch = window.fetch;
+  window.fetch = function(url, opts) {
+    if (typeof url === 'string') {
+      url = makeProxiedUrl(url);
+    }
+    return origFetch.call(this, url, opts);
+  };
+  
+  // Intercept image loading
+  var origImage = window.Image;
+  window.Image = function(w, h) {
+    var img = new origImage(w, h);
+    var origSrcSet = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+    if (origSrcSet && origSrcSet.set) {
+      Object.defineProperty(img, 'src', {
+        set: function(val) { origSrcSet.set.call(this, makeProxiedUrl(val)); },
+        get: origSrcSet.get
+      });
+    }
+    return img;
+  };
+  
+  console.log('[ExternalProxy] Interceptors initialized for:', BASE_ORIGIN);
+})();
+</script>`;
+  
+  // Inject at start of body or after head
+  if ($('body').length) {
+    $('body').prepend(interceptScript);
+  } else if ($('head').length) {
+    $('head').append(interceptScript);
+  } else {
+    return interceptScript + $.html();
+  }
+  
+  return $.html();
+}
+
+/**
+ * Helper: Convert relative URL to absolute URL
+ */
+function makeAbsoluteUrl(url, baseUrl, baseOrigin) {
+  if (!url) return null;
+  if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('javascript:')) return null;
+  
+  try {
+    if (url.startsWith('//')) {
+      return 'https:' + url;
+    } else if (url.startsWith('/')) {
+      return baseOrigin + url;
+    } else if (url.startsWith('http')) {
+      return url;
+    } else {
+      // Relative path
+      const base = new URL(baseUrl);
+      return new URL(url, base).href;
+    }
+  } catch (e) {
+    return null;
+  }
+}
 
 /**
  * GET /test-ip

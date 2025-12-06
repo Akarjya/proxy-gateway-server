@@ -10,8 +10,12 @@
  * VERSION: Update this when making changes to force SW update
  */
 
-const SW_VERSION = '3.0.0';
+const SW_VERSION = '4.1.0';
 const RELAY_ENDPOINT = '/relay';
+
+// Track intercepted requests for debugging
+let interceptCount = 0;
+let bypassCount = 0;
 
 // Paths that should NOT be relayed (our own server paths)
 const BYPASS_PATTERNS = [
@@ -244,6 +248,7 @@ self.addEventListener('fetch', (event) => {
   
   // Check if should bypass
   if (shouldBypass(url)) {
+    bypassCount++;
     // Let it through normally
     return;
   }
@@ -252,6 +257,7 @@ self.addEventListener('fetch', (event) => {
   // This catches ad clicks that navigate to advertiser pages
   if (request.mode === 'navigate' && isExternalUrl(url)) {
     log('Intercepted navigation to external URL:', url.substring(0, 80));
+    interceptCount++;
     
     // Redirect navigation to go through /navigate endpoint
     const navigateUrl = new URL('/navigate', self.location.origin);
@@ -265,10 +271,37 @@ self.addEventListener('fetch', (event) => {
   
   // Check if it's an external URL that needs relaying
   if (isExternalUrl(url)) {
+    interceptCount++;
+    
+    // Log important external requests (ads, analytics, etc.)
+    if (url.includes('googlesyndication') || 
+        url.includes('googleads') || 
+        url.includes('doubleclick') ||
+        url.includes('adsbygoogle')) {
+      log('🔒 INTERCEPTING AD REQUEST:', url.substring(0, 100));
+    } else {
+      log('Relaying:', url.substring(0, 80) + (url.length > 80 ? '...' : ''));
+    }
+    
     // Intercept and relay through our proxy
     event.respondWith(
       relayRequest(request).catch((error) => {
         logError('Relay failed for:', url.substring(0, 60), error.message);
+        
+        // For ad scripts, return empty response instead of error
+        // This prevents page breaking when ad fails
+        if (url.includes('googlesyndication') || 
+            url.includes('googleads') || 
+            url.includes('adsbygoogle')) {
+          log('Returning empty response for failed ad request');
+          return new Response('', {
+            status: 200,
+            statusText: 'OK',
+            headers: {
+              'Content-Type': 'application/javascript'
+            }
+          });
+        }
         
         // Return error response - DO NOT fallback to direct fetch
         // Direct fetch would expose user's real IP!
@@ -284,7 +317,9 @@ self.addEventListener('fetch', (event) => {
         });
       })
     );
+    return; // Important: explicitly return to prevent default handling
   }
+  
   // For same-origin requests that aren't bypassed,
   // let them go through normally (they'll hit our Express routes)
 });
@@ -339,8 +374,12 @@ self.addEventListener('message', (event) => {
   
   if (event.data && event.data.type === 'PING') {
     // Simple ping-pong for connectivity check
+    // Respond via event.source OR via MessageChannel port
     if (event.source) {
       event.source.postMessage({ type: 'PONG', version: SW_VERSION });
+    }
+    if (event.ports && event.ports[0]) {
+      event.ports[0].postMessage({ type: 'PONG', version: SW_VERSION });
     }
   }
   

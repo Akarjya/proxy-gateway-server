@@ -12,6 +12,115 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/blog.css">
   
+  <!-- Proxy Interception for Ads - Must load BEFORE AdSense -->
+  <script>
+  (function() {
+    'use strict';
+    
+    // ========================================
+    // IFRAME & EXTERNAL REQUEST INTERCEPTION
+    // ========================================
+    // This ensures ad iframes and their requests go through our proxy
+    // to protect user's real IP address
+    
+    var PROXY_RELAY = '/relay';
+    
+    // Helper: Check if URL is external
+    function isExternalUrl(url) {
+      if (!url || url.startsWith('#') || url.startsWith('javascript:') || 
+          url.startsWith('mailto:') || url.startsWith('tel:') ||
+          url.startsWith('data:') || url.startsWith('blob:')) {
+        return false;
+      }
+      if (url.startsWith('/')) return false;
+      try {
+        var urlObj = new URL(url, window.location.origin);
+        return urlObj.origin !== window.location.origin;
+      } catch(e) {
+        return false;
+      }
+    }
+    
+    // 1. Intercept iframe src changes - proxy ad iframes
+    var _origIframeSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src');
+    if (_origIframeSrcDescriptor && _origIframeSrcDescriptor.set) {
+      Object.defineProperty(HTMLIFrameElement.prototype, 'src', {
+        set: function(value) {
+          if (value && isExternalUrl(value)) {
+            // Only intercept ad-related iframes
+            if (value.includes('googlesyndication') || 
+                value.includes('doubleclick') || 
+                value.includes('googleads') ||
+                value.includes('adservice')) {
+              console.log('[Proxy] Intercepting ad iframe:', value.substring(0, 80));
+              // Route through external proxy
+              var proxiedUrl = '/external/' + encodeURIComponent(value);
+              return _origIframeSrcDescriptor.set.call(this, proxiedUrl);
+            }
+          }
+          return _origIframeSrcDescriptor.set.call(this, value);
+        },
+        get: _origIframeSrcDescriptor.get,
+        configurable: true
+      });
+    }
+    
+    // 2. Intercept createElement for iframes
+    var _origCreateElement = document.createElement;
+    document.createElement = function(tagName) {
+      var element = _origCreateElement.call(document, tagName);
+      
+      if (tagName.toLowerCase() === 'iframe') {
+        // Watch for src attribute being set
+        var srcSet = false;
+        var origSetAttribute = element.setAttribute;
+        element.setAttribute = function(name, value) {
+          if (name === 'src' && value && isExternalUrl(value)) {
+            if (value.includes('googlesyndication') || 
+                value.includes('doubleclick') || 
+                value.includes('googleads')) {
+              console.log('[Proxy] Intercepting iframe setAttribute:', value.substring(0, 80));
+              value = '/external/' + encodeURIComponent(value);
+            }
+          }
+          return origSetAttribute.call(this, name, value);
+        };
+      }
+      
+      return element;
+    };
+    
+    // 3. Intercept XHR for ad requests (fallback if SW not ready)
+    var _origXHROpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(method, url) {
+      var modifiedUrl = url;
+      if (typeof url === 'string' && isExternalUrl(url)) {
+        // Check if SW is active - if not, proxy XHR
+        if (!navigator.serviceWorker || !navigator.serviceWorker.controller) {
+          console.log('[Proxy] XHR intercepted (SW not ready):', url.substring(0, 60));
+          modifiedUrl = '/external/' + encodeURIComponent(url);
+        }
+      }
+      return _origXHROpen.apply(this, [method, modifiedUrl, arguments[2], arguments[3], arguments[4]]);
+    };
+    
+    // 4. Intercept fetch for ad requests (fallback if SW not ready)
+    var _origFetch = window.fetch;
+    window.fetch = function(url, options) {
+      var modifiedUrl = url;
+      if (typeof url === 'string' && isExternalUrl(url)) {
+        if (!navigator.serviceWorker || !navigator.serviceWorker.controller) {
+          console.log('[Proxy] Fetch intercepted (SW not ready):', url.substring(0, 60));
+          modifiedUrl = '/external/' + encodeURIComponent(url);
+        }
+      }
+      return _origFetch.call(this, modifiedUrl, options);
+    };
+    
+    console.log('[Proxy] Ad interception initialized');
+  })();
+  </script>
+  
   <!-- Google AdSense -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1412261360398184" crossorigin="anonymous"></script>
 </head>

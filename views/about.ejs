@@ -11,6 +11,44 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/blog.css">
   
+  <!-- Proxy Interception for Ads -->
+  <script>
+  (function() {
+    'use strict';
+    function isExternalUrl(url) {
+      if (!url || url.startsWith('#') || url.startsWith('javascript:') || 
+          url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('/')) return false;
+      try { return new URL(url, location.origin).origin !== location.origin; } catch(e) { return false; }
+    }
+    var _iframeSrc = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src');
+    if (_iframeSrc && _iframeSrc.set) {
+      Object.defineProperty(HTMLIFrameElement.prototype, 'src', {
+        set: function(v) {
+          if (v && isExternalUrl(v) && (v.includes('googlesyndication') || v.includes('doubleclick') || v.includes('googleads'))) {
+            return _iframeSrc.set.call(this, '/external/' + encodeURIComponent(v));
+          }
+          return _iframeSrc.set.call(this, v);
+        },
+        get: _iframeSrc.get, configurable: true
+      });
+    }
+    var _create = document.createElement;
+    document.createElement = function(t) {
+      var el = _create.call(document, t);
+      if (t.toLowerCase() === 'iframe') {
+        var _setAttr = el.setAttribute;
+        el.setAttribute = function(n, v) {
+          if (n === 'src' && v && isExternalUrl(v) && (v.includes('googlesyndication') || v.includes('doubleclick') || v.includes('googleads'))) {
+            v = '/external/' + encodeURIComponent(v);
+          }
+          return _setAttr.call(this, n, v);
+        };
+      }
+      return el;
+    };
+  })();
+  </script>
+  
   <!-- Google AdSense -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1412261360398184" crossorigin="anonymous"></script>
 </head>

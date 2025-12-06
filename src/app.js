@@ -23,6 +23,7 @@ const landingRoutes = require('./routes/landingRoutes');
 const contentRoutes = require('./routes/contentRoutes');
 const relayRoutes = require('./routes/relayRoutes');
 const navigateRoutes = require('./routes/navigateRoutes');
+const proxyRoutes = require('./routes/proxyRoutes');
 const { notFoundHandler, errorHandler } = require('./middleware/errorMiddleware');
 
 // Initialize Express app
@@ -84,6 +85,9 @@ app.use('/', relayRoutes);
 
 // Navigate routes (external URL handler)
 app.use('/', navigateRoutes);
+
+// Proxy routes (/browse, /external, /test-ip)
+app.use('/', proxyRoutes);
 
 // Landing/Loader routes (/loader, /reset, etc.)
 app.use('/', landingRoutes);

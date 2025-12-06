@@ -107,20 +107,13 @@ router.get('/sw-test', (req, res) => {
 
 /**
  * Legacy routes - redirect to new structure
+ * (for old URLs that might be bookmarked)
  */
 router.get('/content', (req, res) => {
   res.redirect('/');
 });
 
 router.post('/proceed', (req, res) => {
-  res.redirect('/');
-});
-
-router.get('/browse', (req, res) => {
-  res.redirect('/');
-});
-
-router.get('/browse/*', (req, res) => {
   res.redirect('/');
 });
 
