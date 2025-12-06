@@ -36,12 +36,11 @@
       <div class="ad-label">Advertisement</div>
       <div class="ad-slot">
         <ins class="adsbygoogle"
-             style="display:block"
+             style="display:block; min-height:100px;"
              data-ad-client="ca-pub-1412261360398184"
              data-ad-slot="auto"
              data-ad-format="auto"
              data-full-width-responsive="true"></ins>
-        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
       </div>
     </div>
   </div>
@@ -65,32 +64,61 @@
       <div class="ad-label">Advertisement</div>
       <div class="ad-slot">
         <ins class="adsbygoogle"
-             style="display:block"
+             style="display:block; min-height:100px;"
              data-ad-client="ca-pub-1412261360398184"
              data-ad-slot="auto"
              data-ad-format="auto"
              data-full-width-responsive="true"></ins>
-        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
       </div>
     </div>
 
     <!-- Posts Grid -->
     <section class="posts-grid">
+      <% 
+        const postSlugs = ['best-dating-apps', 'first-date-tips', 'dating-profile-tips', 'conversation-starters', 'relationship-tips'];
+        const badges = ['🔥 HOT', '💝 NEW', '📸 TIPS', '💬 VIRAL', '💑 BEST'];
+        const excerpts = {
+          'best-dating-apps': {
+            hi: 'India ke top dating apps ka complete review. Konsa app aapke liye best hai? Tinder vs Bumble vs Hinge...',
+            en: 'Complete review of India\'s top dating apps. Which app is best for you? Tinder vs Bumble vs Hinge...'
+          },
+          'first-date-tips': {
+            hi: 'Pehli date pe kya karein, kya na karein? Conversation tips, dress code, aur common mistakes se bachein...',
+            en: 'What to do and what not to do on your first date? Conversation tips, dress code, and avoid common mistakes...'
+          },
+          'dating-profile-tips': {
+            hi: 'Aapki profile hi aapka first impression hai. Best bio ideas, photo selection tips, aur profile mistakes...',
+            en: 'Your profile is your first impression. Best bio ideas, photo selection tips, and profile mistakes...'
+          },
+          'conversation-starters': {
+            hi: 'Chat kaise start karein? Boring "Hi" se better options, interesting questions, aur reply paane ke tips...',
+            en: 'How to start a chat? Better options than boring "Hi", interesting questions, and tips to get replies...'
+          },
+          'relationship-tips': {
+            hi: 'Long-lasting relationship ke secrets, trust building, communication tips, aur common relationship problems...',
+            en: 'Secrets of long-lasting relationships, trust building, communication tips, and common relationship problems...'
+          }
+        };
+      %>
       
-      <!-- Post 1 -->
-      <a href="/post/best-dating-apps" class="post-card">
-        <div class="post-card-image" style="background-image: url('/images/featured.jpg'); background-size: cover; background-position: center;">
-          <span class="featured-badge">🔥 HOT</span>
+      <% postSlugs.forEach((slug, index) => { 
+        const post = posts[slug];
+        if (post) { 
+      %>
+      <a href="/post/<%= slug %>" class="post-card">
+        <div class="post-card-image-container">
+          <img src="<%= post.image %>" alt="<%= post.title.en %>" class="post-card-img">
+          <span class="featured-badge"><%= badges[index] %></span>
         </div>
         <div class="post-card-content">
-          <span class="post-card-number">1</span>
+          <span class="post-card-number"><%= index + 1 %></span>
           <h2 class="post-card-title">
-            <span class="lang-hi">🔥 Best Dating Apps in India 2025 — Tinder, Bumble & More</span>
-            <span class="lang-en">🔥 Best Dating Apps in India 2025 — Tinder, Bumble & More</span>
+            <span class="lang-hi"><%= post.title.hi %></span>
+            <span class="lang-en"><%= post.title.en %></span>
           </h2>
           <p class="post-card-excerpt">
-            <span class="lang-hi">India ke top dating apps ka complete review. Konsa app aapke liye best hai? Tinder vs Bumble vs Hinge...</span>
-            <span class="lang-en">Complete review of India's top dating apps. Which app is best for you? Tinder vs Bumble vs Hinge...</span>
+            <span class="lang-hi"><%= excerpts[slug].hi %></span>
+            <span class="lang-en"><%= excerpts[slug].en %></span>
           </p>
           <div class="post-card-meta">
             <span class="read-more">
@@ -100,102 +128,7 @@
           </div>
         </div>
       </a>
-
-      <!-- Post 2 -->
-      <a href="/post/first-date-tips" class="post-card">
-        <div class="post-card-image" style="background-image: url('/images/featured.jpg'); background-size: cover; background-position: center;">
-          <span class="featured-badge">💝 NEW</span>
-        </div>
-        <div class="post-card-content">
-          <span class="post-card-number">2</span>
-          <h2 class="post-card-title">
-            <span class="lang-hi">🌹 First Date Tips — Ladki Ko Impress Kaise Karein?</span>
-            <span class="lang-en">🌹 First Date Tips — How to Impress Her?</span>
-          </h2>
-          <p class="post-card-excerpt">
-            <span class="lang-hi">Pehli date pe kya karein, kya na karein? Conversation tips, dress code, aur common mistakes se bachein...</span>
-            <span class="lang-en">What to do and what not to do on your first date? Conversation tips, dress code, and avoid common mistakes...</span>
-          </p>
-          <div class="post-card-meta">
-            <span class="read-more">
-              <span class="lang-hi">पढ़ें →</span>
-              <span class="lang-en">Read More →</span>
-            </span>
-          </div>
-        </div>
-      </a>
-
-      <!-- Post 3 -->
-      <a href="/post/dating-profile-tips" class="post-card">
-        <div class="post-card-image" style="background-image: url('/images/featured.jpg'); background-size: cover; background-position: center;">
-          <span class="featured-badge">📸 TIPS</span>
-        </div>
-        <div class="post-card-content">
-          <span class="post-card-number">3</span>
-          <h2 class="post-card-title">
-            <span class="lang-hi">📸 Perfect Dating Profile Kaise Banayein? Bio & Photo Tips</span>
-            <span class="lang-en">📸 How to Create the Perfect Dating Profile? Bio & Photo Tips</span>
-          </h2>
-          <p class="post-card-excerpt">
-            <span class="lang-hi">Aapki profile hi aapka first impression hai. Best bio ideas, photo selection tips, aur profile mistakes...</span>
-            <span class="lang-en">Your profile is your first impression. Best bio ideas, photo selection tips, and profile mistakes...</span>
-          </p>
-          <div class="post-card-meta">
-            <span class="read-more">
-              <span class="lang-hi">पढ़ें →</span>
-              <span class="lang-en">Read More →</span>
-            </span>
-          </div>
-        </div>
-      </a>
-
-      <!-- Post 4 -->
-      <a href="/post/conversation-starters" class="post-card">
-        <div class="post-card-image" style="background-image: url('/images/featured.jpg'); background-size: cover; background-position: center;">
-          <span class="featured-badge">💬 VIRAL</span>
-        </div>
-        <div class="post-card-content">
-          <span class="post-card-number">4</span>
-          <h2 class="post-card-title">
-            <span class="lang-hi">💬 Ladki Se Baat Kaise Shuru Karein? Best Opening Lines</span>
-            <span class="lang-en">💬 How to Start a Conversation? Best Opening Lines</span>
-          </h2>
-          <p class="post-card-excerpt">
-            <span class="lang-hi">Chat kaise start karein? Boring "Hi" se better options, interesting questions, aur reply paane ke tips...</span>
-            <span class="lang-en">How to start a chat? Better options than boring "Hi", interesting questions, and tips to get replies...</span>
-          </p>
-          <div class="post-card-meta">
-            <span class="read-more">
-              <span class="lang-hi">पढ़ें →</span>
-              <span class="lang-en">Read More →</span>
-            </span>
-          </div>
-        </div>
-      </a>
-
-      <!-- Post 5 -->
-      <a href="/post/relationship-tips" class="post-card">
-        <div class="post-card-image" style="background-image: url('/images/featured.jpg'); background-size: cover; background-position: center;">
-          <span class="featured-badge">💑 BEST</span>
-        </div>
-        <div class="post-card-content">
-          <span class="post-card-number">5</span>
-          <h2 class="post-card-title">
-            <span class="lang-hi">💑 Relationship Tips — Girlfriend Ko Kaise Khush Rakhein?</span>
-            <span class="lang-en">💑 Relationship Tips — How to Keep Your Girlfriend Happy?</span>
-          </h2>
-          <p class="post-card-excerpt">
-            <span class="lang-hi">Long-lasting relationship ke secrets, trust building, communication tips, aur common relationship problems...</span>
-            <span class="lang-en">Secrets of long-lasting relationships, trust building, communication tips, and common relationship problems...</span>
-          </p>
-          <div class="post-card-meta">
-            <span class="read-more">
-              <span class="lang-hi">पढ़ें →</span>
-              <span class="lang-en">Read More →</span>
-            </span>
-          </div>
-        </div>
-      </a>
+      <% } }) %>
 
     </section>
   </main>
@@ -218,6 +151,22 @@
 
   <!-- Service Worker Check & Redirect Script -->
   <script src="/js/sw-check.js"></script>
+
+  <!-- Initialize AdSense Ads -->
+  <script>
+    // Initialize all ad slots after page loads
+    (function() {
+      try {
+        var ads = document.querySelectorAll('.adsbygoogle');
+        ads.forEach(function() {
+          (adsbygoogle = window.adsbygoogle || []).push({});
+        });
+        console.log('[Ads] Initialized ' + ads.length + ' ad slots');
+      } catch (e) {
+        console.log('[Ads] AdSense not loaded:', e.message);
+      }
+    })();
+  </script>
 
   <!-- Language Toggle Script -->
   <script>

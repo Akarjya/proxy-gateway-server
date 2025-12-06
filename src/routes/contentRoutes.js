@@ -14,7 +14,8 @@ const posts = require('../data/posts');
 router.get('/', (req, res) => {
   logger.info('Serving homepage');
   res.render('home', {
-    title: 'Dating & Relationship Tips | atolf.xyz'
+    title: 'Dating & Relationship Tips | atolf.xyz',
+    posts: posts
   });
 });
 
