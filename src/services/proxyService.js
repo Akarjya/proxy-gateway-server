@@ -139,7 +139,9 @@ class ProxyService {
         ...options.headers
       },
       timeout: 60000,
-      maxRedirects: 10,
+      // Disable automatic redirects so we can handle them manually in navigateRoutes
+      // This is needed for ad URLs where we must follow redirects server-side
+      maxRedirects: options.followRedirects === false ? 0 : 20,
       validateStatus: (status) => status < 500,
       responseType: 'arraybuffer',
       decompress: true,

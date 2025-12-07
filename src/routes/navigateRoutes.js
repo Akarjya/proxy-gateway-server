@@ -29,6 +29,92 @@ const ensureProxySession = (req, res, next) => {
 };
 
 /**
+ * Check if URL is an ad tracking URL that needs special handling
+ * @param {string} url - URL to check
+ * @returns {boolean}
+ */
+function isAdTrackingUrl(url) {
+  const adDomains = [
+    'googleads.g.doubleclick.net',
+    'ad.doubleclick.net',
+    'pagead2.googlesyndication.com',
+    'googleadservices.com',
+    'googlesyndication.com',
+    'doubleclick.net',
+    'adservice.google',
+    'adsrvr.org',
+    'adnxs.com',
+    'bing.com/aclick',
+    'facebook.com/tr',
+    'analytics.twitter.com'
+  ];
+  
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return adDomains.some(domain => hostname.includes(domain));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Follow all redirects server-side through proxy
+ * This prevents "Redirect Notice" from appearing for ad clicks
+ * @param {string} startUrl - Starting URL
+ * @param {Object} session - Express session
+ * @param {Object} headers - Request headers
+ * @param {number} maxRedirects - Maximum redirects to follow
+ * @returns {Promise<Object>} Final response after all redirects
+ */
+async function followRedirectsServerSide(startUrl, session, headers, maxRedirects = 15) {
+  let currentUrl = startUrl;
+  let redirectCount = 0;
+  
+  while (redirectCount < maxRedirects) {
+    logger.debug('Following redirect chain', { 
+      currentUrl, 
+      redirectCount,
+      proxySessionId: session.proxySessionId 
+    });
+    
+    const response = await proxyService.fetchWithRetry(
+      currentUrl,
+      session,
+      {
+        method: 'GET',
+        headers,
+        followRedirects: false // Disable axios auto-redirects so we can track them
+      }
+    );
+    
+    // If not a redirect, return the response
+    if (response.status < 300 || response.status >= 400 || !response.headers.location) {
+      return { response, finalUrl: currentUrl };
+    }
+    
+    // It's a redirect - get the new URL
+    const redirectUrl = response.headers.location;
+    try {
+      currentUrl = new URL(redirectUrl, currentUrl).href;
+    } catch {
+      currentUrl = redirectUrl;
+    }
+    
+    redirectCount++;
+    logger.debug('Redirect detected', { 
+      from: currentUrl, 
+      to: redirectUrl, 
+      status: response.status 
+    });
+  }
+  
+  // Max redirects reached - try to fetch the final URL anyway
+  logger.warn('Max redirects reached', { startUrl, finalUrl: currentUrl, redirectCount });
+  const finalResponse = await proxyService.fetchWithRetry(currentUrl, session, { method: 'GET', headers });
+  return { response: finalResponse, finalUrl: currentUrl };
+}
+
+/**
  * GET /navigate?url=<encoded_url>
  * Navigate to any external URL through proxy
  * Used for ad clicks, external links, etc.
@@ -80,23 +166,38 @@ router.get('/navigate', ensureProxySession, async (req, res) => {
 
   logger.info('Navigation request', {
     targetUrl: decodedUrl,
+    isAdUrl: isAdTrackingUrl(decodedUrl),
     proxySessionId: req.session.proxySessionId
   });
 
+  const requestHeaders = {
+    'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
+  };
+
   try {
-    // Fetch the external page through SOCKS5 proxy
-    const response = await proxyService.fetchWithRetry(
-      decodedUrl,
-      req.session,
-      {
-        method: 'GET',
-        headers: {
-          'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5',
+    let response, finalUrl;
+    
+    // For ad tracking URLs, follow ALL redirects server-side
+    // This prevents Google's "Redirect Notice" from appearing
+    if (isAdTrackingUrl(decodedUrl)) {
+      logger.info('Ad URL detected - following redirects server-side', { url: decodedUrl });
+      const result = await followRedirectsServerSide(decodedUrl, req.session, requestHeaders);
+      response = result.response;
+      finalUrl = result.finalUrl;
+    } else {
+      // For regular URLs, let axios handle redirects normally
+      response = await proxyService.fetchWithRetry(
+        decodedUrl,
+        req.session,
+        {
+          method: 'GET',
+          headers: requestHeaders
         }
-      }
-    );
+      );
+      finalUrl = decodedUrl;
+    }
 
     const contentType = response.contentType || '';
 
@@ -107,14 +208,33 @@ router.get('/navigate', ensureProxySession, async (req, res) => {
         : response.data;
 
       // Rewrite all URLs in the external page to go through our proxy
-      html = rewriteExternalHtml(html, decodedUrl);
+      html = rewriteExternalHtml(html, finalUrl);
       
       res.type('text/html; charset=utf-8').send(html);
     } 
-    // Handle redirects - follow through proxy
+    // Handle any remaining redirects (shouldn't happen for ad URLs now)
     else if (response.status >= 300 && response.status < 400 && response.headers.location) {
-      const redirectUrl = new URL(response.headers.location, decodedUrl).href;
-      return res.redirect('/navigate?url=' + encodeURIComponent(redirectUrl));
+      // For non-ad URLs that still have redirects, follow them server-side too
+      logger.info('Following remaining redirect server-side', { 
+        from: finalUrl, 
+        to: response.headers.location 
+      });
+      const result = await followRedirectsServerSide(
+        new URL(response.headers.location, finalUrl).href, 
+        req.session, 
+        requestHeaders
+      );
+      
+      const finalContentType = result.response.contentType || '';
+      if (finalContentType.includes('text/html')) {
+        let html = Buffer.isBuffer(result.response.data) 
+          ? result.response.data.toString('utf-8') 
+          : result.response.data;
+        html = rewriteExternalHtml(html, result.finalUrl);
+        res.type('text/html; charset=utf-8').send(html);
+      } else {
+        res.type(finalContentType || 'application/octet-stream').send(result.response.data);
+      }
     }
     // Other content types
     else {
