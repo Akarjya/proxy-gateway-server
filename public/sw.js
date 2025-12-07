@@ -6,7 +6,7 @@
  * goes through the proxy server and destination sees PROXY IP
  */
 
-const SW_VERSION = '1.0.0';
+const SW_VERSION = '1.1.0';
 const RELAY_ENDPOINT = '/relay';
 
 // Domains that should NOT be relayed (our own proxy server)
@@ -86,6 +86,55 @@ function shouldBypass(url) {
   }
   
   return false;
+}
+
+/**
+ * Check if URL is a Google ad or tracking URL that needs navigation interception
+ */
+function isAdUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname.toLowerCase();
+    const pathname = urlObj.pathname.toLowerCase();
+    
+    // Google ad domains
+    const adDomains = [
+      'googleads.g.doubleclick.net',
+      'ad.doubleclick.net',
+      'doubleclick.net',
+      'googleadservices.com',
+      'googlesyndication.com',
+      'google.com/aclk',
+      'google.com/url',
+      'adservice.google',
+      'googleads.com',
+      'adtrafficquality.google'
+    ];
+    
+    // Check if hostname matches any ad domain
+    for (const domain of adDomains) {
+      if (domain.includes('/')) {
+        const [domainPart, pathPart] = domain.split('/');
+        if (hostname.includes(domainPart) && pathname.includes('/' + pathPart)) {
+          return true;
+        }
+      } else if (hostname.includes(domain)) {
+        return true;
+      }
+    }
+    
+    // Check for ad click patterns in path
+    if (pathname.includes('/aclk') || 
+        pathname.includes('/pagead') ||
+        pathname.includes('/adclick') ||
+        pathname.includes('/click')) {
+      return true;
+    }
+    
+    return false;
+  } catch (e) {
+    return false;
+  }
 }
 
 /**
@@ -317,12 +366,34 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
+  // SPECIAL: For ad URLs in any mode (not just navigate), redirect to /navigate
+  // This ensures ad click tracking requests also go through our proxy correctly
+  if (isExternalUrl(url) && isAdUrl(url)) {
+    // For non-navigation ad requests (like iframes, redirects)
+    if (request.mode !== 'navigate') {
+      log('Intercepted ad request:', url.substring(0, 80));
+      
+      // Relay the request through our proxy
+      event.respondWith(
+        relayRequest(request).catch((error) => {
+          logError('Ad relay failed:', url.substring(0, 60), error.message);
+          // Return empty response for failed ad requests (better than error)
+          return new Response('', {
+            status: 204,
+            statusText: 'No Content',
+          });
+        })
+      );
+      return;
+    }
+  }
+  
   // Check if it's an external URL that needs relaying
   if (isExternalUrl(url)) {
     // Intercept and relay through our proxy
     event.respondWith(
       relayRequest(request).catch((error) => {
-        logError('Relay failed for:', url, error.message);
+        logError('Relay failed for:', url.substring(0, 60), error.message);
         
         // Fallback: try direct fetch (will use user's real IP)
         // This ensures the page doesn't break completely

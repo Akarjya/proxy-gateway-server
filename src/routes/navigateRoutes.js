@@ -11,7 +11,6 @@ const express = require('express');
 const router = express.Router();
 const proxyService = require('../services/proxyService');
 const rewriteService = require('../services/rewriteService');
-const config = require('../config/config');
 const logger = require('../utils/logger');
 const { generateProxySessionId } = require('../utils/sessionIdGenerator');
 
@@ -36,6 +35,7 @@ const ensureProxySession = (req, res, next) => {
  */
 function isAdTrackingUrl(url) {
   const adDomains = [
+    // Google Ad Domains - comprehensive list
     'googleads.g.doubleclick.net',
     'ad.doubleclick.net',
     'pagead2.googlesyndication.com',
@@ -43,53 +43,56 @@ function isAdTrackingUrl(url) {
     'googlesyndication.com',
     'doubleclick.net',
     'adservice.google',
+    'google.com/aclk',
+    'google.com/pagead',
+    'googleadservices.com',
+    'googleads.com',
+    'google.com/url',  // Google URL redirect
+    'gstatic.com',
+    'adtrafficquality.google',
+    // Other ad networks
     'adsrvr.org',
     'adnxs.com',
     'bing.com/aclick',
     'facebook.com/tr',
     'analytics.twitter.com',
-    // Additional ad/tracking domains
-    'google.com/aclk',
-    'google.com/url',
-    'google.co.in/aclk',
-    'google.co.in/url',
-    'clickserve.dartsearch.net',
-    'googleads.com',
-    'g.doubleclick.net',
-    'ad.atdmt.com',
-    'adclick.g.doubleclick.net',
-    'www.googleadservices.com',
-    'adtrafficquality.google'
+    'taboola.com',
+    'outbrain.com',
+    'criteo.com',
+    'amazon-adsystem.com'
   ];
   
   try {
     const hostname = new URL(url).hostname.toLowerCase();
-    const fullUrl = url.toLowerCase();
+    const pathname = new URL(url).pathname.toLowerCase();
     
-    // Check hostname
-    if (adDomains.some(domain => hostname.includes(domain))) {
-      return true;
-    }
+    // Check domain matches
+    const domainMatch = adDomains.some(domain => {
+      if (domain.includes('/')) {
+        // Check hostname + path pattern
+        const [domainPart, pathPart] = domain.split('/');
+        return hostname.includes(domainPart) && pathname.includes('/' + pathPart);
+      }
+      return hostname.includes(domain);
+    });
     
-    // Also check URL patterns (for redirects like google.com/url?...)
-    const adPatterns = [
-      '/aclk?',
-      '/pagead/',
-      '/aclk/',
-      'adurl=',
-      '/searchads/',
-      '/ad_click'
-    ];
+    // Also check for common ad URL patterns
+    const isAdPattern = pathname.includes('/aclk') || 
+                       pathname.includes('/pagead') ||
+                       pathname.includes('/adclick') ||
+                       pathname.includes('/click') ||
+                       hostname.includes('click.') ||
+                       hostname.includes('track.');
     
-    return adPatterns.some(pattern => fullUrl.includes(pattern));
+    return domainMatch || isAdPattern;
   } catch {
     return false;
   }
 }
 
 /**
- * Check if HTML content is Google's "Redirect Notice" page
- * @param {string} html - HTML content
+ * Check if HTML content is a Google "Redirect Notice" page
+ * @param {string} html - HTML content to check
  * @returns {boolean}
  */
 function isGoogleRedirectNotice(html) {
@@ -97,71 +100,80 @@ function isGoogleRedirectNotice(html) {
   
   const lowerHtml = html.toLowerCase();
   return (
-    (lowerHtml.includes('redirect notice') || 
-     lowerHtml.includes('redirect-notice') ||
-     lowerHtml.includes('the previous page is sending you to')) &&
-    (lowerHtml.includes('doubleclick') || 
-     lowerHtml.includes('google') ||
-     lowerHtml.includes('return to the previous page'))
+    lowerHtml.includes('redirect notice') ||
+    lowerHtml.includes('the previous page is sending you to') ||
+    lowerHtml.includes('return to the previous page') ||
+    (lowerHtml.includes('google') && lowerHtml.includes('redirect'))
   );
 }
 
 /**
- * Extract the actual destination URL from Google's Redirect Notice page
- * @param {string} html - HTML content of redirect notice page
+ * Extract destination URL from Google Redirect Notice HTML
+ * @param {string} html - HTML content
  * @returns {string|null} Extracted URL or null
  */
-function extractRedirectNoticeUrl(html) {
+function extractRedirectDestination(html) {
   if (!html) return null;
   
   const cheerio = require('cheerio');
   const $ = cheerio.load(html);
   
-  // Method 1: Look for link in the page text that mentions the destination
-  // Google's redirect notice shows: "The previous page is sending you to <a href="...">URL</a>"
+  // Method 1: Look for the main link in redirect notice
+  // Google format: "The previous page is sending you to <a href="...">URL</a>"
   const links = $('a[href]');
   
   for (let i = 0; i < links.length; i++) {
     const href = $(links[i]).attr('href');
     if (href && href.startsWith('http') && 
-        !href.includes('google.com/support') &&
-        !href.includes('javascript:')) {
-      // Skip "return to previous page" links
-      const text = $(links[i]).text().toLowerCase();
-      if (!text.includes('return') && !text.includes('previous')) {
-        logger.info('Extracted destination from Redirect Notice', { url: href.substring(0, 100) });
-        return href;
-      }
+        !href.includes('google.com') && 
+        !href.includes('doubleclick.net') &&
+        !href.includes('googlesyndication.com')) {
+      logger.debug('Found redirect destination from link', { href: href.substring(0, 100) });
+      return href;
     }
   }
   
-  // Method 2: Try to find URL in meta refresh
-  const metaRefresh = $('meta[http-equiv="refresh"]').attr('content');
-  if (metaRefresh) {
-    const match = metaRefresh.match(/url=(.+)/i);
-    if (match) {
-      return match[1].trim();
+  // Method 2: Look for URL in redirect URL parameter
+  // Sometimes the page has URL as parameter that auto-redirects
+  const htmlStr = html.toString();
+  
+  // Check for meta refresh redirect
+  const metaRefreshMatch = htmlStr.match(/content=["']?\d+;\s*url=([^"'\s>]+)/i);
+  if (metaRefreshMatch && metaRefreshMatch[1]) {
+    const url = metaRefreshMatch[1].replace(/['"]/g, '');
+    if (url.startsWith('http')) {
+      logger.debug('Found redirect destination from meta refresh', { url: url.substring(0, 100) });
+      return url;
     }
   }
   
-  // Method 3: Look for URL patterns in the raw HTML
-  const urlPatterns = [
-    /https?:\/\/[^\s"'<>]+doubleclick\.net[^\s"'<>]*/gi,
-    /https?:\/\/[^\s"'<>]+googleads[^\s"'<>]*/gi,
-    /href="(https?:\/\/[^"]+)"/gi
-  ];
+  // Method 3: Look for JavaScript redirect
+  const jsRedirectMatch = htmlStr.match(/(?:window\.)?location(?:\.href)?\s*=\s*["']([^"']+)["']/i);
+  if (jsRedirectMatch && jsRedirectMatch[1] && jsRedirectMatch[1].startsWith('http')) {
+    logger.debug('Found redirect destination from JS', { url: jsRedirectMatch[1].substring(0, 100) });
+    return jsRedirectMatch[1];
+  }
   
-  for (const pattern of urlPatterns) {
-    const matches = html.match(pattern);
-    if (matches) {
-      for (const match of matches) {
-        // Clean up the match
-        let url = match.replace(/^href="/, '').replace(/"$/, '');
-        if (url.startsWith('http') && 
-            !url.includes('google.com/support') &&
-            !url.includes('/intl/')) {
-          return url;
-        }
+  // Method 4: Parse URL from "continue to" type links
+  const continueLink = $('a').filter((_, el) => {
+    const text = $(el).text().toLowerCase();
+    return text.includes('continue') || text.includes('proceed') || text.includes('click here');
+  }).first().attr('href');
+  
+  if (continueLink && continueLink.startsWith('http')) {
+    logger.debug('Found redirect destination from continue link', { url: continueLink.substring(0, 100) });
+    return continueLink;
+  }
+  
+  // Method 5: Look for any external URL in the page that looks like destination
+  const urlPattern = /https?:\/\/(?!(?:www\.)?google|doubleclick|googlesyndication)[^\s"'<>]+/gi;
+  const matches = htmlStr.match(urlPattern);
+  if (matches && matches.length > 0) {
+    // Return the first non-Google URL found
+    for (const url of matches) {
+      if (!url.includes('google') && !url.includes('doubleclick') && !url.includes('gstatic')) {
+        logger.debug('Found redirect destination from URL pattern', { url: url.substring(0, 100) });
+        return url;
       }
     }
   }
@@ -172,7 +184,7 @@ function extractRedirectNoticeUrl(html) {
 /**
  * Follow all redirects server-side through proxy
  * This prevents "Redirect Notice" from appearing for ad clicks
- * Handles both HTTP 3xx redirects AND Google's "Redirect Notice" HTML pages
+ * Handles both HTTP redirects (301, 302, etc.) AND HTML-based redirect pages
  * @param {string} startUrl - Starting URL
  * @param {Object} session - Express session
  * @param {Object} headers - Request headers
@@ -200,9 +212,8 @@ async function followRedirectsServerSide(startUrl, session, headers, maxRedirect
       }
     );
     
-    // Check if it's an HTTP redirect (3xx)
+    // Check for HTTP redirect (301, 302, 303, 307, 308)
     if (response.status >= 300 && response.status < 400 && response.headers.location) {
-      // It's a redirect - get the new URL
       const redirectUrl = response.headers.location;
       try {
         currentUrl = new URL(redirectUrl, currentUrl).href;
@@ -218,47 +229,83 @@ async function followRedirectsServerSide(startUrl, session, headers, maxRedirect
       continue;
     }
     
-    // Check for Google's "Redirect Notice" HTML page (HTTP 200 but contains redirect)
-    if (response.status === 200 && response.contentType && response.contentType.includes('text/html')) {
-      const htmlContent = Buffer.isBuffer(response.data) 
+    // Check for HTML-based redirect (like Google's "Redirect Notice")
+    const contentType = response.contentType || '';
+    if (contentType.includes('text/html') && response.status === 200) {
+      const html = Buffer.isBuffer(response.data) 
         ? response.data.toString('utf-8') 
-        : String(response.data);
+        : response.data;
       
-      if (isGoogleRedirectNotice(htmlContent)) {
-        logger.info('Google Redirect Notice detected, extracting destination URL');
+      // Check if this is a redirect notice page
+      if (isGoogleRedirectNotice(html)) {
+        logger.info('Detected Google Redirect Notice page, extracting destination', {
+          currentUrl: currentUrl.substring(0, 80)
+        });
         
-        const extractedUrl = extractRedirectNoticeUrl(htmlContent);
+        const destinationUrl = extractRedirectDestination(html);
         
-        if (extractedUrl) {
+        if (destinationUrl) {
+          logger.info('Extracted destination URL from redirect notice', {
+            destination: destinationUrl.substring(0, 100)
+          });
+          
           try {
-            currentUrl = new URL(extractedUrl, currentUrl).href;
+            currentUrl = new URL(destinationUrl, currentUrl).href;
           } catch {
-            currentUrl = extractedUrl;
+            currentUrl = destinationUrl;
           }
           
           redirectCount++;
-          logger.info('Extracted URL from Redirect Notice', { 
-            extractedUrl: currentUrl.substring(0, 100) 
-          });
           continue;
         } else {
-          logger.warn('Could not extract URL from Redirect Notice, returning as-is');
-          return { response, finalUrl: currentUrl };
+          // Could not extract destination, log warning and return the page
+          logger.warn('Could not extract destination from redirect notice, returning page as-is', {
+            currentUrl: currentUrl.substring(0, 80)
+          });
+        }
+      }
+      
+      // Check for meta refresh redirect in any HTML page
+      const metaRefreshMatch = html.match(/<meta[^>]*http-equiv=["']?refresh["']?[^>]*content=["']?\d+;\s*url=([^"'\s>]+)/i);
+      if (metaRefreshMatch && metaRefreshMatch[1]) {
+        const metaUrl = metaRefreshMatch[1].replace(/['"]/g, '');
+        if (metaUrl && metaUrl.startsWith('http')) {
+          logger.info('Detected meta refresh redirect', { to: metaUrl.substring(0, 100) });
+          currentUrl = metaUrl;
+          redirectCount++;
+          continue;
+        }
+      }
+      
+      // Check for JavaScript immediate redirect
+      const jsRedirectMatch = html.match(/(?:window\.)?location(?:\.href)?\s*=\s*["']([^"']+)["']/);
+      if (jsRedirectMatch && jsRedirectMatch[1] && jsRedirectMatch[1].startsWith('http')) {
+        // Only follow if it's an immediate redirect (not in onclick, etc.)
+        if (!html.includes('onclick') || html.indexOf(jsRedirectMatch[0]) < html.indexOf('onclick')) {
+          logger.info('Detected JavaScript redirect', { to: jsRedirectMatch[1].substring(0, 100) });
+          currentUrl = jsRedirectMatch[1];
+          redirectCount++;
+          continue;
         }
       }
     }
     
-    // No more redirects - return the response
-    logger.debug('Final destination reached', { 
+    // Not a redirect - return the response
+    logger.debug('No more redirects, returning final response', {
       finalUrl: currentUrl.substring(0, 100),
       status: response.status,
-      contentType: response.contentType?.substring(0, 50)
+      contentType: contentType.substring(0, 50)
     });
+    
     return { response, finalUrl: currentUrl };
   }
   
   // Max redirects reached - try to fetch the final URL anyway
-  logger.warn('Max redirects reached', { startUrl: startUrl.substring(0, 60), finalUrl: currentUrl.substring(0, 60), redirectCount });
+  logger.warn('Max redirects reached', { 
+    startUrl: startUrl.substring(0, 80), 
+    finalUrl: currentUrl.substring(0, 80), 
+    redirectCount 
+  });
   const finalResponse = await proxyService.fetchWithRetry(currentUrl, session, { method: 'GET', headers });
   return { response: finalResponse, finalUrl: currentUrl };
 }
@@ -313,30 +360,16 @@ router.get('/navigate', ensureProxySession, async (req, res) => {
     });
   }
 
-  const isAdUrl = isAdTrackingUrl(decodedUrl);
-  
   logger.info('Navigation request', {
-    targetUrl: decodedUrl.substring(0, 100),
-    isAdUrl,
+    targetUrl: decodedUrl,
+    isAdUrl: isAdTrackingUrl(decodedUrl),
     proxySessionId: req.session.proxySessionId
   });
 
-  // For ad URLs, use the original target site as referrer to avoid Redirect Notice
-  // Google checks referrer to verify ad clicks are from authorized sites
-  const originalTargetUrl = config.target.url;
-  const referer = isAdUrl ? originalTargetUrl : req.headers['referer'] || originalTargetUrl;
-  
   const requestHeaders = {
-    'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Referer': referer,
-    'Sec-Fetch-Dest': 'document',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': isAdUrl ? 'cross-site' : 'same-origin',
-    'Sec-Fetch-User': '?1',
-    'Upgrade-Insecure-Requests': '1',
+    'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
   };
 
   try {
@@ -344,23 +377,56 @@ router.get('/navigate', ensureProxySession, async (req, res) => {
     
     // For ad tracking URLs, follow ALL redirects server-side
     // This prevents Google's "Redirect Notice" from appearing
-    if (isAdUrl) {
-      logger.info('Ad URL detected - following redirects server-side', { url: decodedUrl.substring(0, 80) });
+    // Also follow redirects for any URL that contains typical ad/tracking patterns
+    const shouldFollowServerSide = isAdTrackingUrl(decodedUrl) || 
+                                   decodedUrl.includes('click') ||
+                                   decodedUrl.includes('redirect') ||
+                                   decodedUrl.includes('track');
+    
+    if (shouldFollowServerSide) {
+      logger.info('URL requires server-side redirect following', { 
+        url: decodedUrl.substring(0, 100),
+        isAdUrl: isAdTrackingUrl(decodedUrl)
+      });
       const result = await followRedirectsServerSide(decodedUrl, req.session, requestHeaders);
       response = result.response;
       finalUrl = result.finalUrl;
-      logger.info('Ad redirect chain complete', { finalUrl: finalUrl.substring(0, 80) });
     } else {
-      // For regular URLs, let axios handle redirects normally
+      // For regular URLs, fetch and check if we got a redirect notice anyway
       response = await proxyService.fetchWithRetry(
         decodedUrl,
         req.session,
         {
           method: 'GET',
-          headers: requestHeaders
+          headers: requestHeaders,
+          followRedirects: false // Check each response manually
         }
       );
       finalUrl = decodedUrl;
+      
+      // Even for non-ad URLs, check if we got a redirect notice
+      const contentType = response.contentType || '';
+      if (contentType.includes('text/html') && response.status === 200) {
+        const html = Buffer.isBuffer(response.data) 
+          ? response.data.toString('utf-8') 
+          : response.data;
+        
+        if (isGoogleRedirectNotice(html)) {
+          logger.info('Got redirect notice for non-ad URL, following redirects', {
+            url: decodedUrl.substring(0, 80)
+          });
+          const result = await followRedirectsServerSide(decodedUrl, req.session, requestHeaders);
+          response = result.response;
+          finalUrl = result.finalUrl;
+        }
+      }
+      
+      // Handle HTTP redirects for non-ad URLs
+      if (response.status >= 300 && response.status < 400 && response.headers.location) {
+        const result = await followRedirectsServerSide(decodedUrl, req.session, requestHeaders);
+        response = result.response;
+        finalUrl = result.finalUrl;
+      }
     }
 
     const contentType = response.contentType || '';

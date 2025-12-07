@@ -536,6 +536,40 @@ router.get('/browse*', async (req, res) => {
     return false;
   }
   
+  // Helper: Check if URL is a Google ad or tracking URL
+  function isAdUrl(url) {
+    if (!url) return false;
+    try {
+      var urlObj = new (window._OriginalURL || URL)(url);
+      var hostname = urlObj.hostname.toLowerCase();
+      var pathname = urlObj.pathname.toLowerCase();
+      
+      // Google ad domains
+      var adDomains = [
+        'googleads.g.doubleclick.net',
+        'ad.doubleclick.net',
+        'doubleclick.net',
+        'googleadservices.com',
+        'googlesyndication.com',
+        'adservice.google',
+        'googleads.com'
+      ];
+      
+      for (var i = 0; i < adDomains.length; i++) {
+        if (hostname.includes(adDomains[i])) return true;
+      }
+      
+      // Check path patterns
+      if (pathname.includes('/aclk') || pathname.includes('/pagead') || pathname.includes('/adclick')) {
+        return true;
+      }
+      
+      return false;
+    } catch(e) {
+      return false;
+    }
+  }
+  
   // Helper: Route URL through proxy
   function proxyNavigate(url) {
     if (url.startsWith('/browse') || url.startsWith('/external') || url.startsWith('/navigate')) {
@@ -548,7 +582,7 @@ router.get('/browse*', async (req, res) => {
   document.addEventListener('click', function(e) {
     var target = e.target;
     
-    // Find the closest anchor element
+    // Find the closest anchor element (handle nested elements in ads)
     while (target && target.tagName !== 'A') {
       target = target.parentElement;
     }
@@ -556,11 +590,23 @@ router.get('/browse*', async (req, res) => {
     if (target && target.href) {
       var href = target.href;
       
-      // Check if it's an external link
+      // Priority 1: Handle ad URLs immediately
+      if (isAdUrl(href)) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        console.log('[Proxy] Intercepted AD click:', href.substring(0, 80));
+        
+        // For ad URLs, navigate immediately to prevent any other handlers
+        window.location.href = proxyNavigate(href);
+        return false;
+      }
+      
+      // Priority 2: Handle other external links
       if (isExternalUrl(href)) {
         e.preventDefault();
         e.stopPropagation();
-        console.log('[Proxy] Intercepted external link click:', href);
+        console.log('[Proxy] Intercepted external link click:', href.substring(0, 80));
         
         // Route through proxy navigate
         window.location.href = proxyNavigate(href);
@@ -568,6 +614,22 @@ router.get('/browse*', async (req, res) => {
       }
     }
   }, true); // Use capture phase to catch before other handlers
+  
+  // 1b. Additional listener at window level to catch bubbling ad clicks
+  window.addEventListener('click', function(e) {
+    var target = e.target;
+    while (target && target.tagName !== 'A') {
+      target = target.parentElement;
+    }
+    
+    if (target && target.href && isAdUrl(target.href)) {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log('[Proxy] Window-level ad click intercept:', target.href.substring(0, 60));
+      window.location.href = proxyNavigate(target.href);
+      return false;
+    }
+  }, false);
   
   // 2. Intercept window.open (for popup links, ad clicks)
   var _originalWindowOpen = window.open;
