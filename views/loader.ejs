@@ -430,7 +430,7 @@
     const CONFIG = {
       minWaitTime: 5000, // Minimum 5 seconds
       maxWaitTime: 15000, // Maximum 15 seconds timeout
-      returnUrl: '<%= returnUrl || "/browse" %>'
+      returnUrl: <%- JSON.stringify(returnUrl || "/browse") %>
     };
 
     // Tips - English and Hindi versions
@@ -493,6 +493,7 @@
     let minTimeReached = false;
     let startTime = Date.now();
     let tipRotationInterval = null; // Store interval reference for cleanup
+    let progressInterval = null; // Store progress interval reference for cleanup
 
     // DOM Elements
     const progressBar = document.getElementById('progressBar');
@@ -548,11 +549,15 @@
       }, 2500);
     }
 
-    // Cleanup all intervals before redirect
+    // Cleanup all intervals before redirect or retry
     function cleanupIntervals() {
       if (tipRotationInterval) {
         clearInterval(tipRotationInterval);
         tipRotationInterval = null;
+      }
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
       }
     }
 
@@ -562,7 +567,12 @@
       const interval = 50;
       const increment = (80 / (duration / interval)); // Go to 80% during min wait
       
-      const progressInterval = setInterval(() => {
+      // Clear any existing progress interval before starting a new one
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+      
+      progressInterval = setInterval(() => {
         if (progress < 80) {
           progress += increment;
           progressBar.style.width = Math.min(progress, 80) + '%';
@@ -574,6 +584,7 @@
           }
         } else {
           clearInterval(progressInterval);
+          progressInterval = null;
         }
       }, interval);
     }
@@ -646,6 +657,9 @@
 
     // Retry connection (for error state)
     function retryConnection() {
+      // Clean up all existing intervals before starting fresh
+      cleanupIntervals();
+      
       errorState.classList.remove('show');
       progress = 0;
       progressBar.style.width = '0%';
@@ -653,6 +667,7 @@
       minTimeReached = false;
       startTime = Date.now();
       init();
+      startTipRotation(); // Restart tip rotation as well
     }
 
     // Start

@@ -34,7 +34,16 @@ router.get('/loader', (req, res) => {
   }
 
   // Get return URL from query or default to /browse
-  const returnUrl = req.query.returnUrl || '/browse';
+  let returnUrl = req.query.returnUrl || '/browse';
+  
+  // Validate returnUrl to prevent XSS - only allow relative URLs starting with /
+  // Must start with single /, not contain protocol, and not have double slashes at start
+  if (typeof returnUrl !== 'string' || 
+      !returnUrl.startsWith('/') || 
+      returnUrl.startsWith('//') || 
+      returnUrl.includes(':')) {
+    returnUrl = '/browse';
+  }
 
   res.render('loader', {
     title: 'Loading...',
