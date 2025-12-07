@@ -492,6 +492,7 @@
     let sessionReady = false;
     let minTimeReached = false;
     let startTime = Date.now();
+    let tipRotationInterval = null; // Store interval reference for cleanup
 
     // DOM Elements
     const progressBar = document.getElementById('progressBar');
@@ -541,10 +542,18 @@
 
     // Rotate tips every 2.5 seconds
     function startTipRotation() {
-      setInterval(() => {
+      tipRotationInterval = setInterval(() => {
         currentTipIndex++;
         showTip(currentTipIndex);
       }, 2500);
+    }
+
+    // Cleanup all intervals before redirect
+    function cleanupIntervals() {
+      if (tipRotationInterval) {
+        clearInterval(tipRotationInterval);
+        tipRotationInterval = null;
+      }
     }
 
     // Animate progress bar
@@ -631,6 +640,7 @@
     // Redirect to target
     function redirectToTarget() {
       console.log('[Loader] Redirecting to:', CONFIG.returnUrl);
+      cleanupIntervals(); // Clear all intervals before redirect
       window.location.href = CONFIG.returnUrl;
     }
 
