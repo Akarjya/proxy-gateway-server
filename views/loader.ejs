@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Loading... | Premium Dating</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --primary-color: #e11d48;
+      --primary-hover: #be123c;
+      --primary-light: #fb7185;
+      --secondary-color: #f43f5e;
+      --accent-color: #fda4af;
+      --background: #0c0a09;
+      --background-secondary: #1c1917;
+      --card-bg: linear-gradient(145deg, #1c1917 0%, #0c0a09 100%);
+      --text-primary: #fef2f2;
+      --text-secondary: #fca5a5;
+      --text-muted: #a8a29e;
+      --border-color: rgba(225, 29, 72, 0.3);
+      --success-color: #22c55e;
+      --gold: #fbbf24;
+    }
+
+    body {
+      font-family: 'Poppins', 'Segoe UI', sans-serif;
+      background: var(--background);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-primary);
+      overflow: hidden;
+    }
+
+    /* Background Effects */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: 
+        radial-gradient(circle at 10% 20%, rgba(225, 29, 72, 0.2) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(244, 63, 94, 0.15) 0%, transparent 40%),
+        radial-gradient(circle at 50% 50%, rgba(251, 113, 133, 0.1) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 420px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    /* Logo */
+    .logo {
+      font-size: 2rem;
+      font-weight: 800;
+      margin-bottom: 40px;
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* Heart Animation Container */
+    .heart-container {
+      position: relative;
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 40px;
+    }
+
+    .heart {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 4rem;
+      animation: heartbeat 1.2s ease-in-out infinite;
+    }
+
+    .heart-ring {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100px;
+      height: 100px;
+      border: 3px solid transparent;
+      border-top-color: var(--primary-color);
+      border-radius: 50%;
+      animation: spin 1.5s linear infinite;
+    }
+
+    .heart-ring-2 {
+      width: 80px;
+      height: 80px;
+      border-top-color: var(--primary-light);
+      animation-duration: 1.2s;
+      animation-direction: reverse;
+    }
+
+    @keyframes heartbeat {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); }
+      25% { transform: translate(-50%, -50%) scale(1.1); }
+      50% { transform: translate(-50%, -50%) scale(1); }
+      75% { transform: translate(-50%, -50%) scale(1.15); }
+    }
+
+    @keyframes spin {
+      to { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+
+    /* Status Text */
+    .status-text {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+      min-height: 28px;
+      transition: opacity 0.3s ease;
+    }
+
+    .status-sub {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 30px;
+    }
+
+    /* Progress Bar */
+    .progress-container {
+      width: 100%;
+      height: 8px;
+      background: rgba(225, 29, 72, 0.2);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 40px;
+      position: relative;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--primary-color), var(--primary-light), var(--primary-color));
+      background-size: 200% 100%;
+      border-radius: 10px;
+      transition: width 0.3s ease;
+      animation: shimmer 2s linear infinite;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* Tip Card */
+    .tip-card {
+      background: rgba(225, 29, 72, 0.1);
+      border: 1px solid rgba(225, 29, 72, 0.2);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 30px;
+      min-height: 100px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .tip-content {
+      opacity: 1;
+      transition: opacity 0.5s ease;
+    }
+
+    .tip-content.fade-out {
+      opacity: 0;
+    }
+
+    .tip-icon {
+      font-size: 1.5rem;
+      margin-bottom: 8px;
+    }
+
+    .tip-text {
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .tip-lang {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+      font-style: italic;
+    }
+
+    /* Trust Badges */
+    .trust-badges {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 8px 12px;
+      border-radius: 20px;
+    }
+
+    .badge-icon {
+      font-size: 0.9rem;
+    }
+
+    /* Floating Hearts */
+    .floating-hearts {
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .float-heart {
+      position: absolute;
+      font-size: 1.2rem;
+      opacity: 0;
+      animation: floatUp 8s ease-in-out infinite;
+    }
+
+    .float-heart:nth-child(1) { left: 5%; animation-delay: 0s; }
+    .float-heart:nth-child(2) { left: 15%; animation-delay: 1.5s; }
+    .float-heart:nth-child(3) { left: 25%; animation-delay: 3s; }
+    .float-heart:nth-child(4) { left: 45%; animation-delay: 0.5s; }
+    .float-heart:nth-child(5) { left: 65%; animation-delay: 2s; }
+    .float-heart:nth-child(6) { left: 75%; animation-delay: 4s; }
+    .float-heart:nth-child(7) { left: 85%; animation-delay: 1s; }
+    .float-heart:nth-child(8) { left: 95%; animation-delay: 2.5s; }
+
+    @keyframes floatUp {
+      0% {
+        bottom: -10%;
+        opacity: 0;
+        transform: translateX(0) rotate(0deg);
+      }
+      10% {
+        opacity: 0.5;
+      }
+      50% {
+        opacity: 0.3;
+      }
+      100% {
+        bottom: 110%;
+        opacity: 0;
+        transform: translateX(30px) rotate(30deg);
+      }
+    }
+
+    /* Error State (hidden by default) */
+    .error-state {
+      display: none;
+    }
+
+    .error-state.show {
+      display: block;
+    }
+
+    .error-message {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+      color: #fca5a5;
+    }
+
+    .retry-btn {
+      background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+      color: white;
+      border: none;
+      padding: 14px 32px;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 50px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .retry-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(225, 29, 72, 0.4);
+    }
+
+    /* Responsive */
+    @media (max-width: 480px) {
+      .container {
+        padding: 16px;
+      }
+
+      .logo {
+        font-size: 1.6rem;
+        margin-bottom: 30px;
+      }
+
+      .heart-container {
+        width: 100px;
+        height: 100px;
+        margin-bottom: 30px;
+      }
+
+      .heart {
+        font-size: 3rem;
+      }
+
+      .heart-ring {
+        width: 80px;
+        height: 80px;
+      }
+
+      .heart-ring-2 {
+        width: 60px;
+        height: 60px;
+      }
+
+      .tip-card {
+        padding: 16px;
+        min-height: 90px;
+      }
+
+      .trust-badges {
+        gap: 10px;
+      }
+
+      .badge {
+        font-size: 0.7rem;
+        padding: 6px 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Floating Hearts Background -->
+  <div class="floating-hearts">
+    <span class="float-heart">💕</span>
+    <span class="float-heart">❤️</span>
+    <span class="float-heart">💖</span>
+    <span class="float-heart">💗</span>
+    <span class="float-heart">💘</span>
+    <span class="float-heart">💕</span>
+    <span class="float-heart">❤️</span>
+    <span class="float-heart">💖</span>
+  </div>
+
+  <div class="container">
+    <!-- Logo -->
+    <div class="logo">💕 atolf</div>
+
+    <!-- Heart Animation -->
+    <div class="heart-container">
+      <div class="heart-ring"></div>
+      <div class="heart-ring heart-ring-2"></div>
+      <div class="heart">💝</div>
+    </div>
+
+    <!-- Status -->
+    <div class="status-text" id="statusText">Connecting...</div>
+    <div class="status-sub" id="statusSub">Please wait while we set things up</div>
+
+    <!-- Progress Bar -->
+    <div class="progress-container">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <!-- Tip Card -->
+    <div class="tip-card">
+      <div class="tip-content" id="tipContent">
+        <div class="tip-icon" id="tipIcon">💡</div>
+        <div class="tip-text" id="tipText">Loading tips...</div>
+        <div class="tip-lang" id="tipLang"></div>
+      </div>
+    </div>
+
+    <!-- Trust Badges -->
+    <div class="trust-badges">
+      <div class="badge">
+        <span class="badge-icon">🔒</span>
+        <span>Secure Connection</span>
+      </div>
+      <div class="badge">
+        <span class="badge-icon">✅</span>
+        <span>50L+ Users</span>
+      </div>
+      <div class="badge">
+        <span class="badge-icon">🛡️</span>
+        <span>Privacy Protected</span>
+      </div>
+    </div>
+
+    <!-- Error State (Hidden) -->
+    <div class="error-state" id="errorState">
+      <div class="error-message" id="errorMessage">
+        ⚠️ Connection establish nahi ho paya. Please retry karein.
+      </div>
+      <button class="retry-btn" onclick="retryConnection()">🔄 Retry Karein</button>
+    </div>
+  </div>
+
+  <script>
+    // Configuration
+    const CONFIG = {
+      minWaitTime: 5000, // Minimum 5 seconds
+      maxWaitTime: 15000, // Maximum 15 seconds timeout
+      returnUrl: '<%= returnUrl || "/browse" %>'
+    };
+
+    // Tips - English and Hindi versions
+    const tips = [
+      {
+        icon: '💡',
+        en: 'Complete profiles get 10x more matches!',
+        hi: 'पूरी प्रोफाइल वालों को 10 गुना ज्यादा मैच मिलते हैं!'
+      },
+      {
+        icon: '📸',
+        en: 'Smile in your photos - it increases matches by 40%',
+        hi: 'फोटो में मुस्कुराएं - मैच 40% बढ़ जाते हैं'
+      },
+      {
+        icon: '💬',
+        en: 'Start conversations with interesting questions',
+        hi: 'दिलचस्प सवालों से बात शुरू करें'
+      },
+      {
+        icon: '🎯',
+        en: 'Be genuine - authenticity attracts the right people',
+        hi: 'असली बनें - सच्चाई सही लोगों को आकर्षित करती है'
+      },
+      {
+        icon: '⏰',
+        en: 'Best time to chat: Evening 7-10 PM',
+        hi: 'चैट करने का सबसे अच्छा समय: शाम 7-10 बजे'
+      },
+      {
+        icon: '🌟',
+        en: 'Quality over quantity - focus on meaningful connections',
+        hi: 'मात्रा से ज्यादा गुणवत्ता - अच्छे कनेक्शन पर ध्यान दें'
+      },
+      {
+        icon: '💪',
+        en: 'Confidence is attractive - believe in yourself!',
+        hi: 'आत्मविश्वास आकर्षक है - खुद पर भरोसा रखें!'
+      },
+      {
+        icon: '🎭',
+        en: 'Show your hobbies - shared interests create bonds',
+        hi: 'अपने शौक दिखाएं - समान रुचियां रिश्ते बनाती हैं'
+      }
+    ];
+
+    // Status messages
+    const statusMessages = [
+      { text: 'Connecting...', sub: 'Please wait while we set things up' },
+      { text: 'Securing connection...', sub: 'Encrypting your data' },
+      { text: 'Connecting to servers...', sub: 'Finding the best route' },
+      { text: 'Almost ready...', sub: 'Preparing your experience' },
+      { text: 'Redirecting...', sub: 'Taking you to amazing profiles' }
+    ];
+
+    // State
+    let currentTipIndex = 0;
+    let progress = 0;
+    let sessionReady = false;
+    let minTimeReached = false;
+    let startTime = Date.now();
+
+    // DOM Elements
+    const progressBar = document.getElementById('progressBar');
+    const statusText = document.getElementById('statusText');
+    const statusSub = document.getElementById('statusSub');
+    const tipContent = document.getElementById('tipContent');
+    const tipIcon = document.getElementById('tipIcon');
+    const tipText = document.getElementById('tipText');
+    const tipLang = document.getElementById('tipLang');
+    const errorState = document.getElementById('errorState');
+
+    // Initialize
+    function init() {
+      showTip(0);
+      startProgressAnimation();
+      initSession();
+      
+      // Minimum wait timer
+      setTimeout(() => {
+        minTimeReached = true;
+        checkAndRedirect();
+      }, CONFIG.minWaitTime);
+
+      // Maximum wait timeout - redirect anyway
+      setTimeout(() => {
+        if (!sessionReady) {
+          console.log('[Loader] Max wait reached, redirecting anyway');
+          redirectToTarget();
+        }
+      }, CONFIG.maxWaitTime);
+    }
+
+    // Show tip with both languages
+    function showTip(index) {
+      const tip = tips[index % tips.length];
+      
+      // Fade out
+      tipContent.classList.add('fade-out');
+      
+      setTimeout(() => {
+        tipIcon.textContent = tip.icon;
+        tipText.innerHTML = `"${tip.en}"`;
+        tipLang.textContent = tip.hi;
+        tipContent.classList.remove('fade-out');
+      }, 300);
+    }
+
+    // Rotate tips every 2.5 seconds
+    function startTipRotation() {
+      setInterval(() => {
+        currentTipIndex++;
+        showTip(currentTipIndex);
+      }, 2500);
+    }
+
+    // Animate progress bar
+    function startProgressAnimation() {
+      const duration = CONFIG.minWaitTime;
+      const interval = 50;
+      const increment = (80 / (duration / interval)); // Go to 80% during min wait
+      
+      const progressInterval = setInterval(() => {
+        if (progress < 80) {
+          progress += increment;
+          progressBar.style.width = Math.min(progress, 80) + '%';
+          
+          // Update status based on progress
+          const statusIndex = Math.floor(progress / 20);
+          if (statusIndex < statusMessages.length - 1) {
+            updateStatus(statusIndex);
+          }
+        } else {
+          clearInterval(progressInterval);
+        }
+      }, interval);
+    }
+
+    // Update status text
+    function updateStatus(index) {
+      const msg = statusMessages[Math.min(index, statusMessages.length - 1)];
+      statusText.textContent = msg.text;
+      statusSub.textContent = msg.sub;
+    }
+
+    // Initialize session via API
+    async function initSession() {
+      try {
+        console.log('[Loader] Initializing session...');
+        
+        const response = await fetch('/api/init-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'same-origin'
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('[Loader] Session ready:', data);
+          sessionReady = true;
+          checkAndRedirect();
+        } else {
+          throw new Error('Session init failed');
+        }
+      } catch (error) {
+        console.error('[Loader] Session error:', error);
+        // On error, still redirect (with real IP as fallback)
+        sessionReady = true; // Mark as ready to allow redirect
+        checkAndRedirect();
+      }
+    }
+
+    // Check if both conditions met (session ready + min time)
+    function checkAndRedirect() {
+      if (sessionReady && minTimeReached) {
+        completeAndRedirect();
+      }
+    }
+
+    // Complete progress and redirect
+    function completeAndRedirect() {
+      // Animate to 100%
+      updateStatus(statusMessages.length - 1);
+      
+      const completeInterval = setInterval(() => {
+        progress += 5;
+        progressBar.style.width = Math.min(progress, 100) + '%';
+        
+        if (progress >= 100) {
+          clearInterval(completeInterval);
+          setTimeout(redirectToTarget, 300);
+        }
+      }, 30);
+    }
+
+    // Redirect to target
+    function redirectToTarget() {
+      console.log('[Loader] Redirecting to:', CONFIG.returnUrl);
+      window.location.href = CONFIG.returnUrl;
+    }
+
+    // Retry connection (for error state)
+    function retryConnection() {
+      errorState.classList.remove('show');
+      progress = 0;
+      progressBar.style.width = '0%';
+      sessionReady = false;
+      minTimeReached = false;
+      startTime = Date.now();
+      init();
+    }
+
+    // Start
+    document.addEventListener('DOMContentLoaded', () => {
+      init();
+      startTipRotation();
+    });
+  </script>
+</body>
+</html>
+
