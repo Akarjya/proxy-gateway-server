@@ -24,7 +24,7 @@ const config = {
   // Target website - SET VIA ENVIRONMENT VARIABLE (TARGET_URL)
   // Fallback is only for local development
   target: {
-    url: process.env.TARGET_URL || 'https://example.com/',
+    url: process.env.TARGET_URL || 'https://testt.atolf.xyz/',
     // Extract base domain for cookie handling
     get domain() {
       try {
