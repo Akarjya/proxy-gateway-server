@@ -6,7 +6,7 @@
  * goes through the proxy server and destination sees PROXY IP
  */
 
-const SW_VERSION = '3.2.0'; // Added iframe internal fetch/XHR interceptors
+const SW_VERSION = '3.3.0'; // Enhanced iframe.src and MutationObserver interception
 const RELAY_ENDPOINT = '/relay';
 
 // Domains that should NOT be relayed (our own proxy server)

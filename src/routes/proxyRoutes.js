@@ -1145,7 +1145,22 @@ router.get('/external/:encodedUrl', ensureProxySessionForExternal, async (req, r
     });
   }
   
-  // 5. Override createElement to catch dynamic element creation
+  // 5. Override iframe src property setter
+  var iframeProto = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src');
+  if (iframeProto && iframeProto.set) {
+    Object.defineProperty(HTMLIFrameElement.prototype, 'src', {
+      set: function(v) {
+        if (v && typeof v === 'string' && isExternal(v)) {
+          console.log('[IFrame Proxy] iframe.src:', v.substring(0, 60));
+          v = proxyUrl(v);
+        }
+        return iframeProto.set.call(this, v);
+      },
+      get: iframeProto.get
+    });
+  }
+  
+  // 6. Override createElement to catch dynamic element creation
   var _createElement = document.createElement;
   document.createElement = function(tag) {
     var el = _createElement.call(document, tag);
@@ -1154,7 +1169,7 @@ router.get('/external/:encodedUrl', ensureProxySessionForExternal, async (req, r
     if (tagLower === 'script' || tagLower === 'img' || tagLower === 'iframe') {
       var _setAttribute = el.setAttribute;
       el.setAttribute = function(name, value) {
-        if (name === 'src' && isExternal(value)) {
+        if ((name === 'src') && isExternal(value)) {
           console.log('[IFrame Proxy] ' + tag + ' setAttribute:', value.substring(0, 60));
           value = proxyUrl(value);
         }
@@ -1164,7 +1179,7 @@ router.get('/external/:encodedUrl', ensureProxySessionForExternal, async (req, r
     return el;
   };
   
-  // 6. Override sendBeacon
+  // 7. Override sendBeacon
   if (navigator.sendBeacon) {
     var _sendBeacon = navigator.sendBeacon;
     navigator.sendBeacon = function(url, data) {
@@ -1176,7 +1191,33 @@ router.get('/external/:encodedUrl', ensureProxySessionForExternal, async (req, r
     };
   }
   
-  console.log('[IFrame Proxy] Interceptors active');
+  // 8. MutationObserver to catch iframes added after our script runs
+  var observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      mutation.addedNodes.forEach(function(node) {
+        if (node.nodeType === 1 && node.tagName === 'IFRAME') {
+          var src = node.getAttribute('src');
+          if (src && isExternal(src)) {
+            console.log('[IFrame Proxy] MutationObserver caught iframe:', src.substring(0, 60));
+            node.setAttribute('src', proxyUrl(src));
+          }
+        }
+      });
+    });
+  });
+  observer.observe(document.documentElement || document.body || document, { childList: true, subtree: true });
+  
+  // 9. Override window.open
+  var _windowOpen = window.open;
+  window.open = function(url, target, features) {
+    if (url && isExternal(url)) {
+      console.log('[IFrame Proxy] window.open:', url.substring(0, 60));
+      url = '/navigate?url=' + encodeURIComponent(url);
+    }
+    return _windowOpen.call(this, url, target, features);
+  };
+  
+  console.log('[IFrame Proxy] Interceptors active v2');
 })();
 </script>`;
       
