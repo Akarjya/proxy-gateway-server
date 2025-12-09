@@ -1066,6 +1066,131 @@ router.get('/external/:encodedUrl', ensureProxySessionForExternal, async (req, r
         }
       );
       
+      // 6. CRITICAL: Inject fetch/XHR interceptors to catch dynamic requests
+      // This ensures JavaScript inside iframe also goes through proxy
+      const iframeInterceptorScript = `
+<script>
+(function() {
+  'use strict';
+  var PROXY_ORIGIN = '${req.protocol}://${req.get('host')}';
+  var BASE_ORIGIN = '${baseOrigin}';
+  
+  // Helper: Check if URL is external
+  function isExternal(url) {
+    if (!url || typeof url !== 'string') return false;
+    if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('javascript:')) return false;
+    if (url.startsWith('/external/') || url.startsWith('/relay')) return false;
+    try {
+      var u = new URL(url, location.href);
+      return u.origin !== location.origin && u.origin !== PROXY_ORIGIN;
+    } catch(e) { return false; }
+  }
+  
+  // Helper: Proxy URL
+  function proxyUrl(url) {
+    if (!isExternal(url)) return url;
+    // Make absolute
+    if (url.startsWith('//')) url = 'https:' + url;
+    else if (url.startsWith('/')) url = BASE_ORIGIN + url;
+    return '/external/' + encodeURIComponent(url);
+  }
+  
+  // 1. Override fetch
+  var _fetch = window.fetch;
+  window.fetch = function(url, opts) {
+    if (typeof url === 'string' && isExternal(url)) {
+      console.log('[IFrame Proxy] fetch:', url.substring(0, 60));
+      url = proxyUrl(url);
+    }
+    return _fetch.call(this, url, opts);
+  };
+  
+  // 2. Override XMLHttpRequest
+  var _xhrOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function(method, url) {
+    if (typeof url === 'string' && isExternal(url)) {
+      console.log('[IFrame Proxy] XHR:', url.substring(0, 60));
+      arguments[1] = proxyUrl(url);
+    }
+    return _xhrOpen.apply(this, arguments);
+  };
+  
+  // 3. Override Image src
+  var imgProto = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+  if (imgProto && imgProto.set) {
+    Object.defineProperty(HTMLImageElement.prototype, 'src', {
+      set: function(v) {
+        if (isExternal(v)) {
+          console.log('[IFrame Proxy] Image:', v.substring(0, 60));
+          v = proxyUrl(v);
+        }
+        return imgProto.set.call(this, v);
+      },
+      get: imgProto.get
+    });
+  }
+  
+  // 4. Override script src
+  var scriptProto = Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype, 'src');
+  if (scriptProto && scriptProto.set) {
+    Object.defineProperty(HTMLScriptElement.prototype, 'src', {
+      set: function(v) {
+        if (isExternal(v)) {
+          console.log('[IFrame Proxy] Script:', v.substring(0, 60));
+          v = proxyUrl(v);
+        }
+        return scriptProto.set.call(this, v);
+      },
+      get: scriptProto.get
+    });
+  }
+  
+  // 5. Override createElement to catch dynamic element creation
+  var _createElement = document.createElement;
+  document.createElement = function(tag) {
+    var el = _createElement.call(document, tag);
+    var tagLower = tag.toLowerCase();
+    
+    if (tagLower === 'script' || tagLower === 'img' || tagLower === 'iframe') {
+      var _setAttribute = el.setAttribute;
+      el.setAttribute = function(name, value) {
+        if (name === 'src' && isExternal(value)) {
+          console.log('[IFrame Proxy] ' + tag + ' setAttribute:', value.substring(0, 60));
+          value = proxyUrl(value);
+        }
+        return _setAttribute.call(this, name, value);
+      };
+    }
+    return el;
+  };
+  
+  // 6. Override sendBeacon
+  if (navigator.sendBeacon) {
+    var _sendBeacon = navigator.sendBeacon;
+    navigator.sendBeacon = function(url, data) {
+      if (isExternal(url)) {
+        console.log('[IFrame Proxy] Beacon:', url.substring(0, 60));
+        url = proxyUrl(url);
+      }
+      return _sendBeacon.call(this, url, data);
+    };
+  }
+  
+  console.log('[IFrame Proxy] Interceptors active');
+})();
+</script>`;
+      
+      // Inject interceptor script at the start of HTML
+      // Try to inject after <head> or at very beginning
+      if (htmlContent.includes('<head')) {
+        htmlContent = htmlContent.replace(/<head[^>]*>/i, '$&' + iframeInterceptorScript);
+      } else if (htmlContent.includes('<html')) {
+        htmlContent = htmlContent.replace(/<html[^>]*>/i, '$&' + iframeInterceptorScript);
+      } else {
+        // Inject at beginning
+        htmlContent = iframeInterceptorScript + htmlContent;
+      }
+      
       res.type('text/html; charset=utf-8').send(htmlContent);
       return;
     }
