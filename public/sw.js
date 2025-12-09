@@ -6,7 +6,7 @@
  * goes through the proxy server and destination sees PROXY IP
  */
 
-const SW_VERSION = '3.0.0'; // Complete rewrite - no IP leaks
+const SW_VERSION = '3.1.0'; // Fixed client-side iframe interception
 const RELAY_ENDPOINT = '/relay';
 
 // Domains that should NOT be relayed (our own proxy server)

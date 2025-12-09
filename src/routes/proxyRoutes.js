@@ -760,21 +760,50 @@ router.get('/browse*', async (req, res) => {
     console.log('[Proxy] Page unload event triggered');
   });
   
-  // 7. Monitor for dynamic iframe creation (ad iframes)
-  // When an ad iframe tries to navigate the top window, we intercept
+  // 7. CRITICAL: Intercept iframe src to proxy ad iframes through /external
   var _origIframeSetter = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src');
   if (_origIframeSetter && _origIframeSetter.set) {
     Object.defineProperty(HTMLIFrameElement.prototype, 'src', {
       set: function(value) {
-        // Log iframe src changes
-        if (value && (value.includes('googlesyndication') || value.includes('doubleclick'))) {
-          console.log('[Proxy] Ad iframe src set:', value.substring(0, 60));
+        // Check if this is an external ad iframe that needs proxying
+        if (value && typeof value === 'string') {
+          var isAdIframe = value.includes('googlesyndication') || 
+                           value.includes('doubleclick') ||
+                           value.includes('googleads') ||
+                           value.includes('adtrafficquality');
+          var isExternal = value.startsWith('http') && !value.includes(location.host);
+          
+          if (isAdIframe || isExternal) {
+            console.log('[Proxy] 🔄 Proxying iframe:', value.substring(0, 60));
+            // Route through /external endpoint to proxy the iframe
+            var proxiedUrl = '/external/' + encodeURIComponent(value);
+            return _origIframeSetter.set.call(this, proxiedUrl);
+          }
         }
         return _origIframeSetter.set.call(this, value);
       },
       get: _origIframeSetter.get
     });
   }
+  
+  // 8. Also intercept setAttribute for iframes
+  var _origSetAttribute = Element.prototype.setAttribute;
+  Element.prototype.setAttribute = function(name, value) {
+    if (this.tagName === 'IFRAME' && name.toLowerCase() === 'src') {
+      if (value && typeof value === 'string') {
+        var isAdIframe = value.includes('googlesyndication') || 
+                         value.includes('doubleclick') ||
+                         value.includes('googleads');
+        var isExternal = value.startsWith('http') && !value.includes(location.host);
+        
+        if (isAdIframe || isExternal) {
+          console.log('[Proxy] 🔄 Proxying iframe (setAttribute):', value.substring(0, 60));
+          value = '/external/' + encodeURIComponent(value);
+        }
+      }
+    }
+    return _origSetAttribute.call(this, name, value);
+  };
   
   console.log('[Proxy] Navigation interception active - All external links will go through proxy');
 })();
