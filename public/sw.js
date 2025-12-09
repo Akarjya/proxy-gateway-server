@@ -6,7 +6,7 @@
  * goes through the proxy server and destination sees PROXY IP
  */
 
-const SW_VERSION = '1.1.0';
+const SW_VERSION = '2.0.0'; // Fixed iframe interception
 const RELAY_ENDPOINT = '/relay';
 
 // Domains that should NOT be relayed (our own proxy server)
@@ -351,10 +351,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // IMPORTANT: Check for navigation requests to external URLs
-  // This catches ad clicks that navigate to advertiser pages
-  if (request.mode === 'navigate' && isExternalUrl(url)) {
-    log('Intercepted navigation to external URL:', url.substring(0, 80));
+  // CRITICAL: Check for top-level navigation requests to external URLs
+  const isTopNavigation = request.mode === 'navigate' || request.destination === 'document';
+  
+  if (isTopNavigation && isExternalUrl(url)) {
+    log('🚨 Intercepted TOP-LEVEL navigation:', url.substring(0, 80));
     
     // Redirect navigation to go through /navigate endpoint
     const navigateUrl = new URL('/navigate', self.location.origin);
@@ -366,26 +367,53 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // SPECIAL: For ad URLs in any mode (not just navigate), redirect to /navigate
-  // This ensures ad click tracking requests also go through our proxy correctly
+  // CRITICAL FIX: Handle iframe/subframe navigation through /external endpoint
+  // This catches Google Ads iframes that load external content
+  const isIframeNavigation = request.destination === 'iframe' || request.destination === 'subframe';
+  
+  if (isIframeNavigation && isExternalUrl(url)) {
+    log('🚨 Intercepted IFRAME navigation:', url.substring(0, 80));
+    log('   Destination:', request.destination, 'Mode:', request.mode);
+    
+    // Route iframe through /external endpoint
+    const externalUrl = '/external/' + encodeURIComponent(url);
+    
+    event.respondWith(
+      fetch(externalUrl, {
+        credentials: 'same-origin',
+        headers: {
+          'X-SW-Iframe': 'true',
+          'X-SW-Version': SW_VERSION,
+        }
+      }).catch((error) => {
+        logError('Iframe proxy failed:', url.substring(0, 60), error.message);
+        // Return empty HTML for failed iframe (don't break the page)
+        return new Response('', {
+          status: 200,
+          statusText: 'OK',
+          headers: { 'Content-Type': 'text/html' }
+        });
+      })
+    );
+    return;
+  }
+  
+  // SPECIAL: For ad URLs in any mode, relay through proxy
   if (isExternalUrl(url) && isAdUrl(url)) {
-    // For non-navigation ad requests (like iframes, redirects)
-    if (request.mode !== 'navigate') {
-      log('Intercepted ad request:', url.substring(0, 80));
-      
-      // Relay the request through our proxy
-      event.respondWith(
-        relayRequest(request).catch((error) => {
-          logError('Ad relay failed:', url.substring(0, 60), error.message);
-          // Return empty response for failed ad requests (better than error)
-          return new Response('', {
-            status: 204,
-            statusText: 'No Content',
-          });
-        })
-      );
-      return;
-    }
+    log('Intercepted ad request:', url.substring(0, 80));
+    
+    // Relay the request through our proxy
+    event.respondWith(
+      relayRequest(request).catch((error) => {
+        logError('Ad relay failed:', url.substring(0, 60), error.message);
+        // Return empty response for failed ad requests (better than error)
+        return new Response('', {
+          status: 204,
+          statusText: 'No Content',
+        });
+      })
+    );
+    return;
   }
   
   // Check if it's an external URL that needs relaying

@@ -137,8 +137,40 @@ const requireProxySession = (req, res, next) => {
   next();
 };
 
-// Apply session check to all proxy routes
-router.use(requireProxySession);
+/**
+ * Middleware for /external routes - creates session if missing (for SW iframe requests)
+ */
+const { generateProxySessionId } = require('../utils/sessionIdGenerator');
+
+const ensureProxySessionForExternal = (req, res, next) => {
+  // Check if this is a SW-initiated iframe request
+  const isSwIframe = req.headers['x-sw-iframe'] === 'true';
+  
+  if (!req.session.proxySessionId) {
+    // For SW iframe requests, create a new session instead of redirecting
+    if (isSwIframe) {
+      req.session.proxySessionId = generateProxySessionId();
+      req.session.isActive = true;
+      logger.info('Created new proxy session for SW iframe request', {
+        proxySessionId: req.session.proxySessionId,
+        url: req.params.encodedUrl ? req.params.encodedUrl.substring(0, 50) : 'unknown'
+      });
+    } else {
+      logger.warn('No valid proxy session for external request', { path: req.path });
+      return res.redirect('/');
+    }
+  }
+  next();
+};
+
+// Apply session check to all proxy routes EXCEPT /external (handled separately)
+router.use((req, res, next) => {
+  // Skip session check for /external routes - they have their own middleware
+  if (req.path.startsWith('/external/')) {
+    return next();
+  }
+  return requireProxySession(req, res, next);
+});
 
 /**
  * OPTIONS handler for CORS preflight requests
@@ -843,7 +875,7 @@ router.post('/browse*', async (req, res) => {
  * POST /external/:encodedUrl
  * Handle POST requests to external APIs
  */
-router.post('/external/:encodedUrl', async (req, res) => {
+router.post('/external/:encodedUrl', ensureProxySessionForExternal, async (req, res) => {
   try {
     const targetUrl = decodeURIComponent(req.params.encodedUrl);
 
@@ -877,18 +909,24 @@ router.post('/external/:encodedUrl', async (req, res) => {
 
 /**
  * GET /external/*
- * Proxy external resources (CDNs, third-party assets)
+ * Proxy external resources (CDNs, third-party assets, ad iframes)
  */
-router.get('/external/:encodedUrl', async (req, res) => {
+router.get('/external/:encodedUrl', ensureProxySessionForExternal, async (req, res) => {
   try {
     const targetUrl = decodeURIComponent(req.params.encodedUrl);
+    const isSwIframe = req.headers['x-sw-iframe'] === 'true';
 
-    logger.debug('Proxying external resource', { targetUrl });
+    logger.debug('Proxying external resource', { 
+      targetUrl: targetUrl.substring(0, 100),
+      isSwIframe,
+      proxySessionId: req.session.proxySessionId
+    });
 
     // Set CORS headers to allow cross-origin requests
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-SW-Iframe, X-SW-Version');
+    res.header('X-Frame-Options', 'ALLOWALL');
 
     const response = await proxyService.fetchWithRetry(
       targetUrl,
@@ -916,6 +954,55 @@ router.get('/external/:encodedUrl', async (req, res) => {
     if (expectedNonHtml && isHtmlErrorPage(response.data, responseContentType)) {
       logger.warn('Got HTML error page for external resource, returning empty', { targetUrl });
       res.type(correctMimeType).send('');
+      return;
+    }
+
+    // For HTML content (like ad iframes), rewrite URLs
+    if (correctMimeType.includes('text/html') || responseContentType.includes('text/html')) {
+      logger.debug('Processing HTML iframe content', { targetUrl: targetUrl.substring(0, 60) });
+      
+      // Rewrite HTML URLs to go through proxy
+      let htmlContent = Buffer.isBuffer(response.data) ? response.data.toString('utf-8') : response.data;
+      
+      // Get base URL for relative URL resolution
+      const baseUrl = new URL(targetUrl);
+      const baseOrigin = baseUrl.origin;
+      
+      // Rewrite absolute URLs to external domains -> /external/
+      htmlContent = htmlContent.replace(
+        /(src|href|action)=["'](https?:\/\/[^"']+)["']/gi,
+        (match, attr, url) => {
+          // Don't double-encode already proxied URLs
+          if (url.includes('/external/') || url.includes('/relay') || url.includes('/browse')) {
+            return match;
+          }
+          return `${attr}="/external/${encodeURIComponent(url)}"`;
+        }
+      );
+      
+      // Rewrite protocol-relative URLs
+      htmlContent = htmlContent.replace(
+        /(src|href|action)=["'](\/\/[^"']+)["']/gi,
+        (match, attr, url) => {
+          const fullUrl = 'https:' + url;
+          return `${attr}="/external/${encodeURIComponent(fullUrl)}"`;
+        }
+      );
+      
+      // Rewrite relative URLs (starting with /) to use base origin
+      htmlContent = htmlContent.replace(
+        /(src|href|action)=["'](\/[^"']+)["']/gi,
+        (match, attr, url) => {
+          // Skip already proxied URLs
+          if (url.startsWith('/external/') || url.startsWith('/relay') || url.startsWith('/browse')) {
+            return match;
+          }
+          const fullUrl = baseOrigin + url;
+          return `${attr}="/external/${encodeURIComponent(fullUrl)}"`;
+        }
+      );
+      
+      res.type('text/html; charset=utf-8').send(htmlContent);
       return;
     }
 
