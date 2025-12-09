@@ -178,8 +178,9 @@ router.use((req, res, next) => {
 router.options('/external/:encodedUrl', (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-SW-Iframe, X-SW-Version, Accept');
   res.header('Access-Control-Max-Age', '86400');
+  res.header('X-Frame-Options', 'ALLOWALL');
   res.sendStatus(204);
 });
 
@@ -968,9 +969,9 @@ router.get('/external/:encodedUrl', ensureProxySessionForExternal, async (req, r
       const baseUrl = new URL(targetUrl);
       const baseOrigin = baseUrl.origin;
       
-      // Rewrite absolute URLs to external domains -> /external/
+      // 1. Rewrite absolute URLs to external domains -> /external/
       htmlContent = htmlContent.replace(
-        /(src|href|action)=["'](https?:\/\/[^"']+)["']/gi,
+        /(src|href|action|data-src|poster)=["'](https?:\/\/[^"']+)["']/gi,
         (match, attr, url) => {
           // Don't double-encode already proxied URLs
           if (url.includes('/external/') || url.includes('/relay') || url.includes('/browse')) {
@@ -980,18 +981,18 @@ router.get('/external/:encodedUrl', ensureProxySessionForExternal, async (req, r
         }
       );
       
-      // Rewrite protocol-relative URLs
+      // 2. Rewrite protocol-relative URLs
       htmlContent = htmlContent.replace(
-        /(src|href|action)=["'](\/\/[^"']+)["']/gi,
+        /(src|href|action|data-src|poster)=["'](\/\/[^"']+)["']/gi,
         (match, attr, url) => {
           const fullUrl = 'https:' + url;
           return `${attr}="/external/${encodeURIComponent(fullUrl)}"`;
         }
       );
       
-      // Rewrite relative URLs (starting with /) to use base origin
+      // 3. Rewrite relative URLs (starting with /) to use base origin
       htmlContent = htmlContent.replace(
-        /(src|href|action)=["'](\/[^"']+)["']/gi,
+        /(src|href|action|data-src|poster)=["'](\/[^"']+)["']/gi,
         (match, attr, url) => {
           // Skip already proxied URLs
           if (url.startsWith('/external/') || url.startsWith('/relay') || url.startsWith('/browse')) {
@@ -999,6 +1000,40 @@ router.get('/external/:encodedUrl', ensureProxySessionForExternal, async (req, r
           }
           const fullUrl = baseOrigin + url;
           return `${attr}="/external/${encodeURIComponent(fullUrl)}"`;
+        }
+      );
+      
+      // 4. Rewrite srcset attributes (for responsive images)
+      htmlContent = htmlContent.replace(
+        /srcset=["']([^"']+)["']/gi,
+        (match, srcset) => {
+          const rewritten = srcset.split(',').map(part => {
+            const [url, descriptor] = part.trim().split(/\s+/);
+            if (!url) return part;
+            
+            let fullUrl = url;
+            if (url.startsWith('//')) {
+              fullUrl = 'https:' + url;
+            } else if (url.startsWith('/') && !url.startsWith('/external/')) {
+              fullUrl = baseOrigin + url;
+            } else if (!url.startsWith('http')) {
+              return part; // Leave relative URLs as-is
+            }
+            
+            if (fullUrl.startsWith('http') && !fullUrl.includes('/external/')) {
+              return `/external/${encodeURIComponent(fullUrl)}${descriptor ? ' ' + descriptor : ''}`;
+            }
+            return part;
+          }).join(', ');
+          return `srcset="${rewritten}"`;
+        }
+      );
+      
+      // 5. Rewrite CSS url() in inline styles
+      htmlContent = htmlContent.replace(
+        /url\(["']?(https?:\/\/[^"')]+)["']?\)/gi,
+        (match, url) => {
+          return `url("/external/${encodeURIComponent(url)}")`;
         }
       );
       

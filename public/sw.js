@@ -6,12 +6,12 @@
  * goes through the proxy server and destination sees PROXY IP
  */
 
-const SW_VERSION = '2.0.0'; // Fixed iframe interception
+const SW_VERSION = '3.0.0'; // Complete rewrite - no IP leaks
 const RELAY_ENDPOINT = '/relay';
 
 // Domains that should NOT be relayed (our own proxy server)
 const BYPASS_PATTERNS = [
-  // Our own server paths
+  // Our own server paths - these are already proxied or server-side
   /^\/relay/,
   /^\/browse/,
   /^\/external/,
@@ -23,6 +23,10 @@ const BYPASS_PATTERNS = [
   /^\/test-http/,
   /^\/proceed/,
   /^\/reset/,
+  /^\/loader/,
+  /^\/landing/,
+  /^\/api\//,
+  /^\/favicon/,
 ];
 
 // Log with prefix for easy filtering
@@ -89,7 +93,7 @@ function shouldBypass(url) {
 }
 
 /**
- * Check if URL is a Google ad or tracking URL that needs navigation interception
+ * Check if URL is a Google ad or tracking URL
  */
 function isAdUrl(url) {
   try {
@@ -97,18 +101,27 @@ function isAdUrl(url) {
     const hostname = urlObj.hostname.toLowerCase();
     const pathname = urlObj.pathname.toLowerCase();
     
-    // Google ad domains
+    // Complete list of Google ad/tracking domains
     const adDomains = [
       'googleads.g.doubleclick.net',
       'ad.doubleclick.net',
       'doubleclick.net',
       'googleadservices.com',
       'googlesyndication.com',
+      'pagead2.googlesyndication.com',
+      'tpc.googlesyndication.com',
+      'www.googletagservices.com',
+      'securepubads.g.doubleclick.net',
       'google.com/aclk',
       'google.com/url',
       'adservice.google',
       'googleads.com',
-      'adtrafficquality.google'
+      'adtrafficquality.google',
+      'ep1.adtrafficquality.google',
+      'ep2.adtrafficquality.google',
+      'fundingchoicesmessages.google.com',
+      'www.google.com/recaptcha',
+      'www.gstatic.com/recaptcha'
     ];
     
     // Check if hostname matches any ad domain
@@ -127,7 +140,8 @@ function isAdUrl(url) {
     if (pathname.includes('/aclk') || 
         pathname.includes('/pagead') ||
         pathname.includes('/adclick') ||
-        pathname.includes('/click')) {
+        pathname.includes('/click') ||
+        pathname.includes('/sodar')) {
       return true;
     }
     
@@ -400,13 +414,13 @@ self.addEventListener('fetch', (event) => {
   
   // SPECIAL: For ad URLs in any mode, relay through proxy
   if (isExternalUrl(url) && isAdUrl(url)) {
-    log('Intercepted ad request:', url.substring(0, 80));
+    log('🎯 Intercepted AD request:', url.substring(0, 80));
     
     // Relay the request through our proxy
     event.respondWith(
       relayRequest(request).catch((error) => {
         logError('Ad relay failed:', url.substring(0, 60), error.message);
-        // Return empty response for failed ad requests (better than error)
+        // Return empty response - NEVER fall back to direct fetch (IP leak!)
         return new Response('', {
           status: 204,
           statusText: 'No Content',
@@ -418,22 +432,43 @@ self.addEventListener('fetch', (event) => {
   
   // Check if it's an external URL that needs relaying
   if (isExternalUrl(url)) {
+    log('🔄 Relaying external:', url.substring(0, 80));
+    
     // Intercept and relay through our proxy
+    // CRITICAL: NO fallback to direct fetch - that would leak real IP!
     event.respondWith(
       relayRequest(request).catch((error) => {
-        logError('Relay failed for:', url.substring(0, 60), error.message);
+        logError('Relay failed:', url.substring(0, 60), error.message);
         
-        // Fallback: try direct fetch (will use user's real IP)
-        // This ensures the page doesn't break completely
-        return fetch(request).catch(() => {
-          // If even direct fetch fails, return error response
-          return new Response('Resource unavailable', {
-            status: 503,
-            statusText: 'Service Unavailable',
+        // Return appropriate empty response based on request type
+        // NEVER use direct fetch - that exposes real IP!
+        const destination = request.destination;
+        
+        if (destination === 'script') {
+          return new Response('/* Proxy unavailable */', {
+            status: 200,
+            headers: { 'Content-Type': 'application/javascript' }
           });
-        });
+        } else if (destination === 'style') {
+          return new Response('/* Proxy unavailable */', {
+            status: 200,
+            headers: { 'Content-Type': 'text/css' }
+          });
+        } else if (destination === 'image') {
+          // Return 1x1 transparent pixel
+          return new Response('', {
+            status: 200,
+            headers: { 'Content-Type': 'image/gif' }
+          });
+        } else {
+          return new Response('', {
+            status: 204,
+            statusText: 'Proxy Unavailable'
+          });
+        }
       })
     );
+    return;
   }
   // For same-origin requests that aren't bypassed,
   // let them go through normally (they'll hit our proxy routes)
