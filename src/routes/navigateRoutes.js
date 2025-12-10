@@ -214,14 +214,14 @@ async function followRedirectsServerSide(startUrl, session, headers, maxRedirect
     
     // Check for HTTP redirect (301, 302, 303, 307, 308)
     if (response.status >= 300 && response.status < 400 && response.headers.location) {
-      const redirectUrl = response.headers.location;
-      try {
-        currentUrl = new URL(redirectUrl, currentUrl).href;
-      } catch {
-        currentUrl = redirectUrl;
-      }
-      
-      redirectCount++;
+    const redirectUrl = response.headers.location;
+    try {
+      currentUrl = new URL(redirectUrl, currentUrl).href;
+    } catch {
+      currentUrl = redirectUrl;
+    }
+    
+    redirectCount++;
       logger.debug('HTTP redirect detected', { 
         status: response.status,
         to: currentUrl.substring(0, 100)

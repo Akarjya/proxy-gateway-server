@@ -137,40 +137,8 @@ const requireProxySession = (req, res, next) => {
   next();
 };
 
-/**
- * Middleware for /external routes - creates session if missing (for SW iframe requests)
- */
-const { generateProxySessionId } = require('../utils/sessionIdGenerator');
-
-const ensureProxySessionForExternal = (req, res, next) => {
-  // Check if this is a SW-initiated iframe request
-  const isSwIframe = req.headers['x-sw-iframe'] === 'true';
-  
-  if (!req.session.proxySessionId) {
-    // For SW iframe requests, create a new session instead of redirecting
-    if (isSwIframe) {
-      req.session.proxySessionId = generateProxySessionId();
-      req.session.isActive = true;
-      logger.info('Created new proxy session for SW iframe request', {
-        proxySessionId: req.session.proxySessionId,
-        url: req.params.encodedUrl ? req.params.encodedUrl.substring(0, 50) : 'unknown'
-      });
-    } else {
-      logger.warn('No valid proxy session for external request', { path: req.path });
-      return res.redirect('/');
-    }
-  }
-  next();
-};
-
-// Apply session check to all proxy routes EXCEPT /external (handled separately)
-router.use((req, res, next) => {
-  // Skip session check for /external routes - they have their own middleware
-  if (req.path.startsWith('/external/')) {
-    return next();
-  }
-  return requireProxySession(req, res, next);
-});
+// Apply session check to all proxy routes
+router.use(requireProxySession);
 
 /**
  * OPTIONS handler for CORS preflight requests
@@ -178,9 +146,8 @@ router.use((req, res, next) => {
 router.options('/external/:encodedUrl', (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-SW-Iframe, X-SW-Version, Accept');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.header('Access-Control-Max-Age', '86400');
-  res.header('X-Frame-Options', 'ALLOWALL');
   res.sendStatus(204);
 });
 
@@ -760,50 +727,21 @@ router.get('/browse*', async (req, res) => {
     console.log('[Proxy] Page unload event triggered');
   });
   
-  // 7. CRITICAL: Intercept iframe src to proxy ad iframes through /external
+  // 7. Monitor for dynamic iframe creation (ad iframes)
+  // When an ad iframe tries to navigate the top window, we intercept
   var _origIframeSetter = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src');
   if (_origIframeSetter && _origIframeSetter.set) {
     Object.defineProperty(HTMLIFrameElement.prototype, 'src', {
       set: function(value) {
-        // Check if this is an external ad iframe that needs proxying
-        if (value && typeof value === 'string') {
-          var isAdIframe = value.includes('googlesyndication') || 
-                           value.includes('doubleclick') ||
-                           value.includes('googleads') ||
-                           value.includes('adtrafficquality');
-          var isExternal = value.startsWith('http') && !value.includes(location.host);
-          
-          if (isAdIframe || isExternal) {
-            console.log('[Proxy] 🔄 Proxying iframe:', value.substring(0, 60));
-            // Route through /external endpoint to proxy the iframe
-            var proxiedUrl = '/external/' + encodeURIComponent(value);
-            return _origIframeSetter.set.call(this, proxiedUrl);
-          }
+        // Log iframe src changes
+        if (value && (value.includes('googlesyndication') || value.includes('doubleclick'))) {
+          console.log('[Proxy] Ad iframe src set:', value.substring(0, 60));
         }
         return _origIframeSetter.set.call(this, value);
       },
       get: _origIframeSetter.get
     });
   }
-  
-  // 8. Also intercept setAttribute for iframes
-  var _origSetAttribute = Element.prototype.setAttribute;
-  Element.prototype.setAttribute = function(name, value) {
-    if (this.tagName === 'IFRAME' && name.toLowerCase() === 'src') {
-      if (value && typeof value === 'string') {
-        var isAdIframe = value.includes('googlesyndication') || 
-                         value.includes('doubleclick') ||
-                         value.includes('googleads');
-        var isExternal = value.startsWith('http') && !value.includes(location.host);
-        
-        if (isAdIframe || isExternal) {
-          console.log('[Proxy] 🔄 Proxying iframe (setAttribute):', value.substring(0, 60));
-          value = '/external/' + encodeURIComponent(value);
-        }
-      }
-    }
-    return _origSetAttribute.call(this, name, value);
-  };
   
   console.log('[Proxy] Navigation interception active - All external links will go through proxy');
 })();
@@ -905,7 +843,7 @@ router.post('/browse*', async (req, res) => {
  * POST /external/:encodedUrl
  * Handle POST requests to external APIs
  */
-router.post('/external/:encodedUrl', ensureProxySessionForExternal, async (req, res) => {
+router.post('/external/:encodedUrl', async (req, res) => {
   try {
     const targetUrl = decodeURIComponent(req.params.encodedUrl);
 
@@ -939,24 +877,18 @@ router.post('/external/:encodedUrl', ensureProxySessionForExternal, async (req, 
 
 /**
  * GET /external/*
- * Proxy external resources (CDNs, third-party assets, ad iframes)
+ * Proxy external resources (CDNs, third-party assets)
  */
-router.get('/external/:encodedUrl', ensureProxySessionForExternal, async (req, res) => {
+router.get('/external/:encodedUrl', async (req, res) => {
   try {
     const targetUrl = decodeURIComponent(req.params.encodedUrl);
-    const isSwIframe = req.headers['x-sw-iframe'] === 'true';
 
-    logger.debug('Proxying external resource', { 
-      targetUrl: targetUrl.substring(0, 100),
-      isSwIframe,
-      proxySessionId: req.session.proxySessionId
-    });
+    logger.debug('Proxying external resource', { targetUrl });
 
     // Set CORS headers to allow cross-origin requests
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-SW-Iframe, X-SW-Version');
-    res.header('X-Frame-Options', 'ALLOWALL');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     const response = await proxyService.fetchWithRetry(
       targetUrl,
@@ -984,255 +916,6 @@ router.get('/external/:encodedUrl', ensureProxySessionForExternal, async (req, r
     if (expectedNonHtml && isHtmlErrorPage(response.data, responseContentType)) {
       logger.warn('Got HTML error page for external resource, returning empty', { targetUrl });
       res.type(correctMimeType).send('');
-      return;
-    }
-
-    // For HTML content (like ad iframes), rewrite URLs
-    if (correctMimeType.includes('text/html') || responseContentType.includes('text/html')) {
-      logger.debug('Processing HTML iframe content', { targetUrl: targetUrl.substring(0, 60) });
-      
-      // Rewrite HTML URLs to go through proxy
-      let htmlContent = Buffer.isBuffer(response.data) ? response.data.toString('utf-8') : response.data;
-      
-      // Get base URL for relative URL resolution
-      const baseUrl = new URL(targetUrl);
-      const baseOrigin = baseUrl.origin;
-      
-      // 1. Rewrite absolute URLs to external domains -> /external/
-      htmlContent = htmlContent.replace(
-        /(src|href|action|data-src|poster)=["'](https?:\/\/[^"']+)["']/gi,
-        (match, attr, url) => {
-          // Don't double-encode already proxied URLs
-          if (url.includes('/external/') || url.includes('/relay') || url.includes('/browse')) {
-            return match;
-          }
-          return `${attr}="/external/${encodeURIComponent(url)}"`;
-        }
-      );
-      
-      // 2. Rewrite protocol-relative URLs
-      htmlContent = htmlContent.replace(
-        /(src|href|action|data-src|poster)=["'](\/\/[^"']+)["']/gi,
-        (match, attr, url) => {
-          const fullUrl = 'https:' + url;
-          return `${attr}="/external/${encodeURIComponent(fullUrl)}"`;
-        }
-      );
-      
-      // 3. Rewrite relative URLs (starting with /) to use base origin
-      htmlContent = htmlContent.replace(
-        /(src|href|action|data-src|poster)=["'](\/[^"']+)["']/gi,
-        (match, attr, url) => {
-          // Skip already proxied URLs
-          if (url.startsWith('/external/') || url.startsWith('/relay') || url.startsWith('/browse')) {
-            return match;
-          }
-          const fullUrl = baseOrigin + url;
-          return `${attr}="/external/${encodeURIComponent(fullUrl)}"`;
-        }
-      );
-      
-      // 4. Rewrite srcset attributes (for responsive images)
-      htmlContent = htmlContent.replace(
-        /srcset=["']([^"']+)["']/gi,
-        (match, srcset) => {
-          const rewritten = srcset.split(',').map(part => {
-            const [url, descriptor] = part.trim().split(/\s+/);
-            if (!url) return part;
-            
-            let fullUrl = url;
-            if (url.startsWith('//')) {
-              fullUrl = 'https:' + url;
-            } else if (url.startsWith('/') && !url.startsWith('/external/')) {
-              fullUrl = baseOrigin + url;
-            } else if (!url.startsWith('http')) {
-              return part; // Leave relative URLs as-is
-            }
-            
-            if (fullUrl.startsWith('http') && !fullUrl.includes('/external/')) {
-              return `/external/${encodeURIComponent(fullUrl)}${descriptor ? ' ' + descriptor : ''}`;
-            }
-            return part;
-          }).join(', ');
-          return `srcset="${rewritten}"`;
-        }
-      );
-      
-      // 5. Rewrite CSS url() in inline styles
-      htmlContent = htmlContent.replace(
-        /url\(["']?(https?:\/\/[^"')]+)["']?\)/gi,
-        (match, url) => {
-          return `url("/external/${encodeURIComponent(url)}")`;
-        }
-      );
-      
-      // 6. CRITICAL: Inject fetch/XHR interceptors to catch dynamic requests
-      // This ensures JavaScript inside iframe also goes through proxy
-      const iframeInterceptorScript = `
-<script>
-(function() {
-  'use strict';
-  var PROXY_ORIGIN = '${req.protocol}://${req.get('host')}';
-  var BASE_ORIGIN = '${baseOrigin}';
-  
-  // Helper: Check if URL is external
-  function isExternal(url) {
-    if (!url || typeof url !== 'string') return false;
-    if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('javascript:')) return false;
-    if (url.startsWith('/external/') || url.startsWith('/relay')) return false;
-    try {
-      var u = new URL(url, location.href);
-      return u.origin !== location.origin && u.origin !== PROXY_ORIGIN;
-    } catch(e) { return false; }
-  }
-  
-  // Helper: Proxy URL
-  function proxyUrl(url) {
-    if (!isExternal(url)) return url;
-    // Make absolute
-    if (url.startsWith('//')) url = 'https:' + url;
-    else if (url.startsWith('/')) url = BASE_ORIGIN + url;
-    return '/external/' + encodeURIComponent(url);
-  }
-  
-  // 1. Override fetch
-  var _fetch = window.fetch;
-  window.fetch = function(url, opts) {
-    if (typeof url === 'string' && isExternal(url)) {
-      console.log('[IFrame Proxy] fetch:', url.substring(0, 60));
-      url = proxyUrl(url);
-    }
-    return _fetch.call(this, url, opts);
-  };
-  
-  // 2. Override XMLHttpRequest
-  var _xhrOpen = XMLHttpRequest.prototype.open;
-  XMLHttpRequest.prototype.open = function(method, url) {
-    if (typeof url === 'string' && isExternal(url)) {
-      console.log('[IFrame Proxy] XHR:', url.substring(0, 60));
-      arguments[1] = proxyUrl(url);
-    }
-    return _xhrOpen.apply(this, arguments);
-  };
-  
-  // 3. Override Image src
-  var imgProto = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
-  if (imgProto && imgProto.set) {
-    Object.defineProperty(HTMLImageElement.prototype, 'src', {
-      set: function(v) {
-        if (isExternal(v)) {
-          console.log('[IFrame Proxy] Image:', v.substring(0, 60));
-          v = proxyUrl(v);
-        }
-        return imgProto.set.call(this, v);
-      },
-      get: imgProto.get
-    });
-  }
-  
-  // 4. Override script src
-  var scriptProto = Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype, 'src');
-  if (scriptProto && scriptProto.set) {
-    Object.defineProperty(HTMLScriptElement.prototype, 'src', {
-      set: function(v) {
-        if (isExternal(v)) {
-          console.log('[IFrame Proxy] Script:', v.substring(0, 60));
-          v = proxyUrl(v);
-        }
-        return scriptProto.set.call(this, v);
-      },
-      get: scriptProto.get
-    });
-  }
-  
-  // 5. Override iframe src property setter
-  var iframeProto = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src');
-  if (iframeProto && iframeProto.set) {
-    Object.defineProperty(HTMLIFrameElement.prototype, 'src', {
-      set: function(v) {
-        if (v && typeof v === 'string' && isExternal(v)) {
-          console.log('[IFrame Proxy] iframe.src:', v.substring(0, 60));
-          v = proxyUrl(v);
-        }
-        return iframeProto.set.call(this, v);
-      },
-      get: iframeProto.get
-    });
-  }
-  
-  // 6. Override createElement to catch dynamic element creation
-  var _createElement = document.createElement;
-  document.createElement = function(tag) {
-    var el = _createElement.call(document, tag);
-    var tagLower = tag.toLowerCase();
-    
-    if (tagLower === 'script' || tagLower === 'img' || tagLower === 'iframe') {
-      var _setAttribute = el.setAttribute;
-      el.setAttribute = function(name, value) {
-        if ((name === 'src') && isExternal(value)) {
-          console.log('[IFrame Proxy] ' + tag + ' setAttribute:', value.substring(0, 60));
-          value = proxyUrl(value);
-        }
-        return _setAttribute.call(this, name, value);
-      };
-    }
-    return el;
-  };
-  
-  // 7. Override sendBeacon
-  if (navigator.sendBeacon) {
-    var _sendBeacon = navigator.sendBeacon;
-    navigator.sendBeacon = function(url, data) {
-      if (isExternal(url)) {
-        console.log('[IFrame Proxy] Beacon:', url.substring(0, 60));
-        url = proxyUrl(url);
-      }
-      return _sendBeacon.call(this, url, data);
-    };
-  }
-  
-  // 8. MutationObserver to catch iframes added after our script runs
-  var observer = new MutationObserver(function(mutations) {
-    mutations.forEach(function(mutation) {
-      mutation.addedNodes.forEach(function(node) {
-        if (node.nodeType === 1 && node.tagName === 'IFRAME') {
-          var src = node.getAttribute('src');
-          if (src && isExternal(src)) {
-            console.log('[IFrame Proxy] MutationObserver caught iframe:', src.substring(0, 60));
-            node.setAttribute('src', proxyUrl(src));
-          }
-        }
-      });
-    });
-  });
-  observer.observe(document.documentElement || document.body || document, { childList: true, subtree: true });
-  
-  // 9. Override window.open
-  var _windowOpen = window.open;
-  window.open = function(url, target, features) {
-    if (url && isExternal(url)) {
-      console.log('[IFrame Proxy] window.open:', url.substring(0, 60));
-      url = '/navigate?url=' + encodeURIComponent(url);
-    }
-    return _windowOpen.call(this, url, target, features);
-  };
-  
-  console.log('[IFrame Proxy] Interceptors active v2');
-})();
-</script>`;
-      
-      // Inject interceptor script at the start of HTML
-      // Try to inject after <head> or at very beginning
-      if (htmlContent.includes('<head')) {
-        htmlContent = htmlContent.replace(/<head[^>]*>/i, '$&' + iframeInterceptorScript);
-      } else if (htmlContent.includes('<html')) {
-        htmlContent = htmlContent.replace(/<html[^>]*>/i, '$&' + iframeInterceptorScript);
-      } else {
-        // Inject at beginning
-        htmlContent = iframeInterceptorScript + htmlContent;
-      }
-      
-      res.type('text/html; charset=utf-8').send(htmlContent);
       return;
     }
 

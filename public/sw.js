@@ -6,12 +6,12 @@
  * goes through the proxy server and destination sees PROXY IP
  */
 
-const SW_VERSION = '3.3.0'; // Enhanced iframe.src and MutationObserver interception
+const SW_VERSION = '1.2.0';
 const RELAY_ENDPOINT = '/relay';
 
 // Domains that should NOT be relayed (our own proxy server)
 const BYPASS_PATTERNS = [
-  // Our own server paths - these are already proxied or server-side
+  // Our own server paths
   /^\/relay/,
   /^\/browse/,
   /^\/external/,
@@ -23,10 +23,6 @@ const BYPASS_PATTERNS = [
   /^\/test-http/,
   /^\/proceed/,
   /^\/reset/,
-  /^\/loader/,
-  /^\/landing/,
-  /^\/api\//,
-  /^\/favicon/,
 ];
 
 // Log with prefix for easy filtering
@@ -93,7 +89,7 @@ function shouldBypass(url) {
 }
 
 /**
- * Check if URL is a Google ad or tracking URL
+ * Check if URL is a Google ad or tracking URL that needs navigation interception
  */
 function isAdUrl(url) {
   try {
@@ -101,27 +97,18 @@ function isAdUrl(url) {
     const hostname = urlObj.hostname.toLowerCase();
     const pathname = urlObj.pathname.toLowerCase();
     
-    // Complete list of Google ad/tracking domains
+    // Google ad domains
     const adDomains = [
       'googleads.g.doubleclick.net',
       'ad.doubleclick.net',
       'doubleclick.net',
       'googleadservices.com',
       'googlesyndication.com',
-      'pagead2.googlesyndication.com',
-      'tpc.googlesyndication.com',
-      'www.googletagservices.com',
-      'securepubads.g.doubleclick.net',
       'google.com/aclk',
       'google.com/url',
       'adservice.google',
       'googleads.com',
-      'adtrafficquality.google',
-      'ep1.adtrafficquality.google',
-      'ep2.adtrafficquality.google',
-      'fundingchoicesmessages.google.com',
-      'www.google.com/recaptcha',
-      'www.gstatic.com/recaptcha'
+      'adtrafficquality.google'
     ];
     
     // Check if hostname matches any ad domain
@@ -140,8 +127,7 @@ function isAdUrl(url) {
     if (pathname.includes('/aclk') || 
         pathname.includes('/pagead') ||
         pathname.includes('/adclick') ||
-        pathname.includes('/click') ||
-        pathname.includes('/sodar')) {
+        pathname.includes('/click')) {
       return true;
     }
     
@@ -191,7 +177,7 @@ function makeAbsoluteUrl(url, baseUrl) {
  */
 function getOriginalTargetUrl() {
   // This will be set by the page when it loads
-  return self.ORIGINAL_TARGET_URL || 'https://dating.atolf.xyz/';
+  return self.ORIGINAL_TARGET_URL || 'https://testt.atolf.xyz/';
 }
 
 /**
@@ -365,11 +351,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // CRITICAL: Check for top-level navigation requests to external URLs
-  const isTopNavigation = request.mode === 'navigate' || request.destination === 'document';
-  
-  if (isTopNavigation && isExternalUrl(url)) {
-    log('🚨 Intercepted TOP-LEVEL navigation:', url.substring(0, 80));
+  // IMPORTANT: Check for navigation requests to external URLs
+  // This catches ad clicks that navigate to advertiser pages
+  if (request.mode === 'navigate' && isExternalUrl(url)) {
+    log('Intercepted navigation to external URL:', url.substring(0, 80));
     
     // Redirect navigation to go through /navigate endpoint
     const navigateUrl = new URL('/navigate', self.location.origin);
@@ -381,94 +366,46 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // CRITICAL FIX: Handle iframe/subframe navigation through /external endpoint
-  // This catches Google Ads iframes that load external content
-  const isIframeNavigation = request.destination === 'iframe' || request.destination === 'subframe';
-  
-  if (isIframeNavigation && isExternalUrl(url)) {
-    log('🚨 Intercepted IFRAME navigation:', url.substring(0, 80));
-    log('   Destination:', request.destination, 'Mode:', request.mode);
-    
-    // Route iframe through /external endpoint
-    const externalUrl = '/external/' + encodeURIComponent(url);
-    
-    event.respondWith(
-      fetch(externalUrl, {
-        credentials: 'same-origin',
-        headers: {
-          'X-SW-Iframe': 'true',
-          'X-SW-Version': SW_VERSION,
-        }
-      }).catch((error) => {
-        logError('Iframe proxy failed:', url.substring(0, 60), error.message);
-        // Return empty HTML for failed iframe (don't break the page)
-        return new Response('', {
-          status: 200,
-          statusText: 'OK',
-          headers: { 'Content-Type': 'text/html' }
-        });
-      })
-    );
-    return;
-  }
-  
-  // SPECIAL: For ad URLs in any mode, relay through proxy
+  // SPECIAL: For ad URLs in any mode (not just navigate), redirect to /navigate
+  // This ensures ad click tracking requests also go through our proxy correctly
   if (isExternalUrl(url) && isAdUrl(url)) {
-    log('🎯 Intercepted AD request:', url.substring(0, 80));
-    
-    // Relay the request through our proxy
-    event.respondWith(
-      relayRequest(request).catch((error) => {
-        logError('Ad relay failed:', url.substring(0, 60), error.message);
-        // Return empty response - NEVER fall back to direct fetch (IP leak!)
-        return new Response('', {
-          status: 204,
-          statusText: 'No Content',
-        });
-      })
-    );
-    return;
+    // For non-navigation ad requests (like iframes, redirects)
+    if (request.mode !== 'navigate') {
+      log('Intercepted ad request:', url.substring(0, 80));
+      
+      // Relay the request through our proxy
+      event.respondWith(
+        relayRequest(request).catch((error) => {
+          logError('Ad relay failed:', url.substring(0, 60), error.message);
+          // Return empty response for failed ad requests (better than error)
+          return new Response('', {
+            status: 204,
+            statusText: 'No Content',
+          });
+        })
+      );
+      return;
+    }
   }
   
   // Check if it's an external URL that needs relaying
   if (isExternalUrl(url)) {
-    log('🔄 Relaying external:', url.substring(0, 80));
-    
     // Intercept and relay through our proxy
-    // CRITICAL: NO fallback to direct fetch - that would leak real IP!
     event.respondWith(
       relayRequest(request).catch((error) => {
-        logError('Relay failed:', url.substring(0, 60), error.message);
+        logError('Relay failed for:', url.substring(0, 60), error.message);
         
-        // Return appropriate empty response based on request type
-        // NEVER use direct fetch - that exposes real IP!
-        const destination = request.destination;
-        
-        if (destination === 'script') {
-          return new Response('/* Proxy unavailable */', {
-            status: 200,
-            headers: { 'Content-Type': 'application/javascript' }
+        // Fallback: try direct fetch (will use user's real IP)
+        // This ensures the page doesn't break completely
+        return fetch(request).catch(() => {
+          // If even direct fetch fails, return error response
+          return new Response('Resource unavailable', {
+            status: 503,
+            statusText: 'Service Unavailable',
           });
-        } else if (destination === 'style') {
-          return new Response('/* Proxy unavailable */', {
-            status: 200,
-            headers: { 'Content-Type': 'text/css' }
-          });
-        } else if (destination === 'image') {
-          // Return 1x1 transparent pixel
-          return new Response('', {
-            status: 200,
-            headers: { 'Content-Type': 'image/gif' }
-          });
-        } else {
-          return new Response('', {
-            status: 204,
-            statusText: 'Proxy Unavailable'
-          });
-        }
+        });
       })
     );
-    return;
   }
   // For same-origin requests that aren't bypassed,
   // let them go through normally (they'll hit our proxy routes)

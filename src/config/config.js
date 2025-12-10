@@ -30,7 +30,7 @@ const config = {
       try {
         return new URL(this.url).hostname;
       } catch {
-        return 'example.com';
+        return 'testt.atolf.xyz';
       }
     }
   },
